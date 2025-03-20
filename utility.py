@@ -50,31 +50,49 @@ reddit = praw.Reddit(
 )
 
 def tool_message_print(msg: str, args: list[tuple[str, str]] = None):
-    """
-    Prints a tool message with the given message and arguments.
-
-    Args:
-        msg: The message to print.
-        args: A list of tuples containing the argument name and value. Optional.
-    """
-    full_msasage = f"{Fore.CYAN}[TOOL]{Style.RESET_ALL} {Fore.WHITE}{msg}"
+    """Print a formatted tool message."""
+    console = Console()
+    
+    # Create a more structured title
+    title = Text("🔧 TOOL ACTION", style="bold cyan")
+    
     if args:
-        for arg in args:
-            full_msasage += f" [{Fore.YELLOW}{arg[0]}{Fore.WHITE}={arg[1]}]"
-    print(full_msasage)
+        content = [Text(msg, style="bold")]
+        for arg_name, arg_value in args:
+            arg_text = Text()
+            arg_text.append(f"• {arg_name}: ", style="cyan")
+            arg_text.append(str(arg_value))
+            content.append(arg_text)
+    else:
+        content = Text(msg)
+    
+    panel = Panel(
+        content,
+        title=title,
+        border_style="cyan",
+        expand=False
+    )
+    console.print(panel)
 
 def tool_report_print(msg: str, value: str, is_error: bool = False):
-    """
-    Print when a tool needs to put out a message as a report
-
-    Args:
-        msg: The message to print.
-        value: The value to print.
-        is_error: Whether this is an error message. If True, value will be printed in red.
-    """
-    value_color = Fore.RED if is_error else Fore.YELLOW
-    full_msasage = f"{Fore.CYAN}  ├─{Style.RESET_ALL} {msg} {value_color}{value}"
-    print(full_msasage)
+    """Print a formatted tool result."""
+    console = Console()
+    
+    # Create a more structured title with emoji
+    emoji = "❌" if is_error else "✓"
+    title = Text(f"{emoji} TOOL RESULT", style="bold red" if is_error else "bold green")
+    
+    content = Text()
+    content.append(f"{msg} ", style="bold")
+    content.append(value, style="red" if is_error else None)
+    
+    panel = Panel(
+        content,
+        title=title,
+        border_style="red" if is_error else "green",
+        expand=False
+    )
+    console.print(panel)
 
 def duckduckgo_search_tool(query: str) -> list:
     """

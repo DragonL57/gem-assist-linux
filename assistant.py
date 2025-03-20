@@ -69,8 +69,16 @@ class Assistant:
     def print_ai(self, msg: str):
         # Simple display without panels
         self.console.print(f"[assistant]{self.name}:[/] ", end="")
-        self.console.print(Markdown(msg.strip() if msg else ""))
-        print() # Add a blank line after assistant response
+        
+        # Process and standardize the message formatting if it's not empty
+        if msg:
+            # Ensure code blocks have proper syntax highlighting
+            formatted_msg = msg.strip()
+            self.console.print(Markdown(formatted_msg))
+        else:
+            self.console.print("I don't have a response for that.")
+            
+        print()  # Add a blank line after assistant response
 
     def get_completion(self):
         """Get a completion from the model with the current messages and tools."""

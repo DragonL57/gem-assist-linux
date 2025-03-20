@@ -139,23 +139,25 @@ def open_url(url: str) -> bool:
         return False
 
 def progress_function(dl: Pypdl):
-    """
-    Prints the progress of the download using Rich library for in-place updates. (not used by AI)
-
-    Args:
-        dl: The Pypdl object.
-    """
+    """Enhanced download progress function with clearer formatting."""
     console = Console()
     progress = Progress(
-        TaskProgressColumn(),
+        "[progress.description]{task.description}",
         BarColumn(),
-        "[progress.percentage]{task.percentage:>3.1f}%",
+        "[progress.percentage]{task.percentage:>3.0f}%",
+        "•",
+        TaskProgressColumn(),
         "•",
         TimeRemainingColumn(),
     )
-
-    task_id = progress.add_task("download", total=dl.size if dl.size else 100) 
-
+    
+    if dl.filename:
+        task_description = f"Downloading {dl.filename}"
+    else:
+        task_description = "Downloading file"
+        
+    task_id = progress.add_task(task_description, total=dl.size if dl.size else 100)
+    
     def update_progress():
         if dl.size:
             progress.update(task_id, completed=dl.current_size)
