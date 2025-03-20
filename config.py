@@ -24,7 +24,7 @@ NAME = "Gemini"
 
 TEMPERATURE = 0.25
 TOP_P = None
-MAX_TOKENS = None
+MAX_TOKENS = 8192  # Set to maximum supported by the model
 SEED = None
 
 # Script parameters
@@ -138,3 +138,8 @@ MAX_REDDIT_SEARCH_RESULTS: int = 5
 
 # Maximum amount of reddit comments to load when looking into specific reddit posts, -1 for no limit
 MAX_REDDIT_POST_COMMENTS: int = -1
+
+# Multi-agent framework settings
+DEBUG = False  # Enable to see agent reasoning steps
+USE_MULTI_AGENT = True  # Enable the multi-agent framework
+AGENT_TIMEOUT = 30  # Maximum seconds for an agent to process a task

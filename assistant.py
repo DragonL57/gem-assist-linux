@@ -47,6 +47,8 @@ custom_theme = Theme({
     "command": "bold yellow",
 })
 
+from gem.agents import AgentRegistry, OrchestratorAgent, FileSystemAgent, ResearchAgent, SystemAgent
+
 class Assistant:
 
     def __init__(
@@ -62,16 +64,78 @@ class Assistant:
         self.messages = []
         self.available_functions = {func.__name__: func for func in tools}
         self.tools = list(map(function_to_json_schema, tools))
+        self.console = Console(theme=custom_theme)
 
         if system_instruction:
             self.messages.append({"role": "system", "content": system_instruction})
 
-        self.console = Console(theme=custom_theme)
+        # Initialize the agent registry and specialized agents
+        self.agent_registry = AgentRegistry()
+        
+        # Create specialized agents
+        self.file_agent = FileSystemAgent(model=model, console=self.console)
+        self.research_agent = ResearchAgent(model=model, console=self.console)
+        self.system_agent = SystemAgent(model=model, console=self.console)
+        
+        # Register all agents
+        self.agent_registry.register("FileSystem", self.file_agent)
+        self.agent_registry.register("Research", self.research_agent)
+        self.agent_registry.register("System", self.system_agent)
+        
+        # Create orchestrator agent
+        self.orchestrator = OrchestratorAgent(
+            model=model,
+            agent_registry=self.agent_registry,
+            system_instruction=system_instruction,
+            console=self.console
+        )
 
     def send_message(self, message):
-        self.messages.append({"role": "user", "content": message})
-        response = self.get_completion()
-        return self.__process_response(response)
+        try:
+            # Add context from previous messages for better analysis
+            prev_msgs = ""
+            if len(self.messages) > 0 and len(self.messages) <= 6:
+                # Include up to 3 previous exchanges for context
+                prev_msgs = "\n".join([
+                    f"{msg['role'].upper()}: {msg['content'][:100]}..." 
+                    for msg in self.messages[-6:]
+                ])
+            
+            # Let the orchestrator decide if this is a complex query
+            complexity_analysis = self.orchestrator.analyze_complexity(
+                f"CONTEXT (Previous messages):\n{prev_msgs}\n\nCURRENT QUERY: {message}"
+            )
+            
+            # Use the orchestrator's analysis without any additional hardcoding
+            if complexity_analysis["is_complex"]:
+                self.console.print("[dim]Query requires multi-agent processing...[/]")
+                result = self.orchestrator.process_query(message)
+                
+                # Add the result to our message history
+                self.messages.append({"role": "user", "content": message})
+                self.messages.append({"role": "assistant", "content": result["response"]})
+                
+                # Print agent reasoning if debug mode is on
+                if hasattr(conf, 'DEBUG') and conf.DEBUG:
+                    self.console.print("[dim]Agent coordination plan:[/]")
+                    self.console.print(result["plan"])
+                    self.console.print("[dim]Complexity analysis:[/]")
+                    self.console.print(complexity_analysis["reasoning"])
+                
+                # Print the final response
+                self.print_ai(result["response"])
+                return {"content": result["response"]}
+            else:
+                # Use standard processing for simpler queries
+                self.messages.append({"role": "user", "content": message})
+                response = self.get_completion()
+                return self.__process_response(response)
+        except Exception as e:
+            self.console.print(f"[error]Analysis error: {e}. Falling back to standard processing.[/]")
+            # Fallback to standard processing if analysis fails
+            self.messages.append({"role": "user", "content": message})
+            response = self.get_completion()
+            return self.__process_response(response)
 
     def print_ai(self, msg: str):
         """Display the assistant's response with proper formatting and wrapping."""
@@ -107,7 +171,7 @@ class Assistant:
             tools=self.tools,
             temperature=conf.TEMPERATURE,
             top_p=conf.TOP_P,
-            max_tokens=conf.MAX_TOKENS,
+            max_tokens=conf.MAX_TOKENS or 8192,  # Use config or fallback to 8192
             seed=conf.SEED,
             safety_settings=conf.SAFETY_SETTINGS
         )
