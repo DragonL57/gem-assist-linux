@@ -22,6 +22,7 @@ dependencies = [
     "rich>=13.9.4",
     "thefuzz>=0.22.1",
     "wikipedia>=1.4.0",
+    "prompt_toolkit",
 ]
 
 [project.optional-dependencies]

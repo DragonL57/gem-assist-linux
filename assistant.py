@@ -9,6 +9,12 @@ import colorama
 from pydantic import BaseModel
 import litellm
 
+# Add prompt_toolkit for better terminal input handling
+from prompt_toolkit import PromptSession, HTML
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.styles import Style as PromptStyle
+
 # Updated import path for utils
 from utils import TOOLS
 import pickle
@@ -319,6 +325,14 @@ def main():
     colorama.init(autoreset=True)
     console = Console(theme=custom_theme)
 
+    # Setup prompt_toolkit with history and styling
+    history_file = os.path.join(os.path.expanduser("~"), ".gem_assist_history")
+    session = PromptSession(
+        history=FileHistory(history_file),
+        auto_suggest=AutoSuggestFromHistory(),
+        enable_history_search=True,
+    )
+
     notes = ""
     if os.path.exists("./ai-log.txt"):
         with open("ai-log.txt", "r", encoding="utf-8") as f:
@@ -350,9 +364,11 @@ def main():
 
     while True:
         try:
-            # Get user message with a colored "You:" prompt instead of an arrow
-            console.print("[user]You:[/] ", end="", style="bold magenta")
-            msg = input("")
+            # Fix the HTML formatting to use correct syntax
+            msg = session.prompt(
+                HTML('<span style="color:magenta;font-weight:bold">You:</span> '),
+                mouse_support=True
+            )
             
             if not msg:
                 continue
@@ -361,8 +377,7 @@ def main():
                 CommandExecuter.execute(msg)
                 continue
                 
-            # Don't echo the user's message again, as it's already displayed with the prompt
-            # Just send it directly to the assistant
+            # Send the message to the assistant
             assistant.send_message(msg)
 
         except KeyboardInterrupt:
