@@ -256,12 +256,18 @@ def download_file_from_url(url: str, download_path: str | None) -> str:
     """
     
     try:
+        # Show detailed pre-download information
+        console = Console()
+        console.print("[cyan]Preparing download...[/]")
+        
         url_filename = None
         if download_path is None:
+            console.print(f"[dim]No download path specified. Attempting to determine filename from URL...[/]")
             url_filename, error = try_resolve_filename_from_url(url)
             if error:
                 return error
             final_path = url_filename  # In current directory
+            console.print(f"[cyan]Detected filename: [bold]{url_filename}[/][/]")
         else:
             path_parts = os.path.split(download_path)
             final_part = path_parts[-1]
@@ -273,21 +279,40 @@ def download_file_from_url(url: str, download_path: str | None) -> str:
             )
             
             if is_likely_dir:
+                console.print(f"[dim]Download path appears to be a directory. Determining filename...[/]")
                 url_filename, error = try_resolve_filename_from_url(url)
                 if error:
                     return error
                 final_path = os.path.join(download_path, url_filename)
+                console.print(f"[cyan]Will save as: [bold]{final_path}[/][/]")
             else:
                 final_path = download_path
+                console.print(f"[cyan]Will save as: [bold]{final_path}[/][/]")
         
-        os.makedirs(os.path.dirname(os.path.abspath(final_path)), exist_ok=True)
-            
+        # Create directory if needed
+        dir_path = os.path.dirname(os.path.abspath(final_path))
+        if not os.path.exists(dir_path):
+            console.print(f"[dim]Creating directory: {dir_path}[/]")
+            os.makedirs(dir_path, exist_ok=True)
+        
+        # Start the actual download with enhanced progress tracking
+        start_time = time.time()
         tool_message_print("download_file_from_url", [("url", url), ("final_path", final_path)])
         
         dl = Pypdl()
         dl.start(url, final_path, display=False, block=False)
         progress_function(dl)
-        return f"File downloaded successfully to {final_path}"
+        
+        # Show download completion details
+        download_time = time.time() - start_time
+        file_size = os.path.getsize(final_path)
+        tool_report_print(
+            "Download complete:", 
+            f"File saved to {final_path} ({format_size(file_size)})", 
+            execution_time=download_time
+        )
+        
+        return f"File downloaded successfully to {final_path} ({format_size(file_size)}) in {download_time:.2f} seconds"
     except requests.exceptions.RequestException as e:
         tool_report_print("Error downloading file:", str(e), is_error=True)
         return f"Error downloading file: {e}"

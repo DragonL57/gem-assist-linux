@@ -4,6 +4,7 @@ These functions are used across the various tools modules.
 """
 
 import os
+import time
 import colorama
 from colorama import Fore, Style
 from rich.console import Console
@@ -31,50 +32,69 @@ theme = Theme({
 console = Console(theme=theme)
 
 def tool_message_print(msg: str, args: list[tuple[str, str]] = None):
-    """
-    Prints a tool message with the given message and arguments using Rich formatting.
-
-    Args:
-        msg: The message to print.
-        args: A list of tuples containing the argument name and value. Optional.
-    """
-    # Create a table for the tool info with a rounded box
-    table = Table(box=ROUNDED, show_header=False, show_edge=False, expand=False)
-    table.add_column("Key", style="tool")
-    table.add_column("Value")
+    """Print a formatted tool message with enhanced visibility."""
+    console = Console()
     
-    # Add the tool name as the first row
-    table.add_row("[tool]TOOL[/]", f"[bright_white]{msg}[/]")
+    # Create a more detailed and visually distinct title
+    title = Text("🔧 TOOL EXECUTION", style="bold cyan")
     
-    # Add arguments as rows if provided
+    content = []
+    content.append(Text(f"Tool: ", style="cyan bold") + Text(msg, style="white bold"))
+    
     if args:
+        args_text = Text("\nArguments:", style="cyan")
+        content.append(args_text)
+        
+        # Create a more structured arguments display
         for arg_name, arg_value in args:
-            table.add_row(f"[arg_name]{arg_name}[/]", f"[arg_value]{arg_value}[/]")
+            arg_text = Text()
+            arg_text.append(f"  • {arg_name}: ", style="cyan")
+            
+            # Format the value based on its length
+            if isinstance(arg_value, str) and len(arg_value) > 100:
+                display_value = arg_value[:97] + "..."
+            else:
+                display_value = str(arg_value)
+                
+            arg_text.append(display_value)
+            content.append(arg_text)
     
-    # Add a subtle border around the tool information
     panel = Panel(
-        table,
+        "\n".join(str(item) for item in content),
+        title=title,
         border_style="cyan",
-        padding=(0, 1),
         expand=False
     )
     console.print(panel)
 
-def tool_report_print(msg: str, value: str, is_error: bool = False):
-    """
-    Print when a tool needs to put out a message as a report with enhanced formatting.
-
-    Args:
-        msg: The message to print.
-        value: The value to print.
-        is_error: Whether this is an error message. If True, value will be printed in red.
-    """
-    style = "error" if is_error else "success"
-    prefix = "❌" if is_error else "✓"
+def tool_report_print(msg: str, value: str, is_error: bool = False, execution_time: float = None):
+    """Print a formatted tool result with enhanced details."""
+    console = Console()
     
-    console.print(
-        f"  {prefix} {msg} [bold {style}]{value}[/]"
+    # Create a more informative title with emoji
+    emoji = "❌" if is_error else "✅"
+    title = Text(f"{emoji} TOOL RESULT", style="bold red" if is_error else "bold green")
+    
+    content = []
+    
+    # Add the main message and value
+    main_text = Text()
+    main_text.append(f"{msg} ", style="bold")
+    main_text.append(value, style="red" if is_error else None)
+    content.append(main_text)
+    
+    # Add execution time if provided
+    if execution_time is not None:
+        time_text = Text(f"\nExecution time: {execution_time:.4f} seconds", style="dim")
+        content.append(time_text)
+    
+    panel = Panel(
+        "\n".join(str(item) for item in content),
+        title=title,
+        border_style="red" if is_error else "green",
+        expand=False
     )
+    console.print(panel)
 
 def write_note(message: str):
     """

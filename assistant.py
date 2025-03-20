@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import traceback
+import time
 from typing import Callable, Union
 import colorama
 from pydantic import BaseModel
@@ -67,6 +68,13 @@ class Assistant:
         return self.__process_response(response)
 
     def print_ai(self, msg: str):
+        """Display the assistant's response with proper formatting and wrapping."""
+        # Get console width to enable proper text wrapping
+        console_width = os.get_terminal_size().columns if hasattr(os, 'get_terminal_size') else 80
+        
+        # Leave space for the prefix and some margin
+        effective_width = console_width - 15  # Account for prefix and safety margin
+        
         # Simple display without panels
         self.console.print(f"[assistant]{self.name}:[/] ", end="")
         
@@ -74,7 +82,12 @@ class Assistant:
         if msg:
             # Ensure code blocks have proper syntax highlighting
             formatted_msg = msg.strip()
-            self.console.print(Markdown(formatted_msg))
+            
+            # Use width parameter to control text wrapping
+            self.console.print(Markdown(formatted_msg, code_theme="monokai", justify="left"), 
+                               width=effective_width, 
+                               overflow="fold", 
+                               no_wrap=False)
         else:
             self.console.print("I don't have a response for that.")
             
@@ -205,6 +218,13 @@ class Assistant:
         # Multi-turn parallel tool calling
         try:
             if tool_calls:
+                # Show model's reasoning before tool calls if present
+                if response_message.content and print_response:
+                    self.console.print("[dim italic]Model reasoning: " + response_message.content.strip() + "[/]")
+                    self.console.print()  # Add space for readability
+                
+                self.console.print(f"[bold cyan]Running {len(tool_calls)} tool operation(s):[/]")
+                
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
 
@@ -215,10 +235,21 @@ class Assistant:
                         self.add_toolcall_output(tool_call.id, function_name, err_msg)
                         continue
 
-                    # Display tool call info with a simple line, no panel
-                    self.console.print(f"[tool]Using tool: {function_name}[/]")
-
+                    # Parse and display function arguments in a more readable format
                     function_args = json.loads(tool_call.function.arguments)
+                    
+                    # Create a formatted string representation of args for display
+                    args_display = []
+                    for arg_name, arg_value in function_args.items():
+                        if isinstance(arg_value, str) and len(arg_value) > 50:
+                            # Truncate long string arguments for display
+                            display_val = f"{arg_value[:47]}..."
+                        else:
+                            display_val = str(arg_value)
+                        args_display.append(f"{arg_name}={display_val}")
+                    
+                    args_str = ", ".join(args_display)
+                    self.console.print(f"[cyan]→ {function_name}({args_str})[/]")
 
                     sig = inspect.signature(function_to_call)
 
@@ -229,21 +260,34 @@ class Assistant:
                             )
 
                     try:
+                        # Track execution time
+                        start_time = time.time()
                         function_response = function_to_call(**function_args)
-                        if final_response.content:
-                            # Show thinking without panel
-                            self.console.print("[dim]" + final_response.content.strip() + "[/dim]")
+                        execution_time = time.time() - start_time
+                        
+                        # Show execution time and brief result
+                        if isinstance(function_response, str) and len(function_response) > 100:
+                            brief_response = function_response[:97] + "..."
+                        else:
+                            brief_response = str(function_response)
+                        
+                        self.console.print(f"[green]✓ Completed in {execution_time:.4f}s: {brief_response}[/]")
+                        self.console.print()  # Add space for readability
                         
                         self.add_toolcall_output(
                             tool_call.id, function_name, function_response
                         )
                     except Exception as e:
-                        self.console.print(f"[error]Error: {e}[/]")
+                        self.console.print(f"[error]Error executing {function_name}: {e}[/]")
+                        self.console.print()  # Add space for readability
                         self.add_toolcall_output(
                             tool_call.id, tool_call.function.name, str(e)
                         )
                         continue
 
+                # Add a visual separator after all tool calls
+                self.console.print("[cyan]───────────────────────────────────────[/]")
+                
                 final_response = self.get_completion()
 
                 tool_calls = final_response.choices[0].message.tool_calls
@@ -251,6 +295,8 @@ class Assistant:
                     response_message = final_response.choices[0].message
                     self.messages.append(response_message)
                     if print_response:
+                        # Add a visual indicator that this is the final response
+                        self.console.print("[bold green]Final Response:[/]")
                         self.print_ai(response_message.content)
                     return response_message
             else:
@@ -263,7 +309,8 @@ class Assistant:
                 final_response, print_response=print_response
             )
         except Exception as e:
-            self.console.print(f"[error]Error: {e}[/]")
+            self.console.print(f"[error]Error in processing response: {e}[/]")
+            traceback.print_exc()
 
 
 # Main function implementation
