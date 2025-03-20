@@ -2,13 +2,14 @@ import inspect
 import json
 import os
 import platform
-from typing import Callable
 import traceback
-from typing import Union
+from typing import Callable, Union
 import colorama
 from pydantic import BaseModel
 import litellm
-from utility import TOOLS
+
+# Updated import path for utils
+from utils import TOOLS
 import pickle
 
 from colorama import Fore, Style

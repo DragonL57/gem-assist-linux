@@ -22,7 +22,12 @@ dependencies = [
     "rich>=13.9.4",
     "thefuzz>=0.22.1",
     "wikipedia>=1.4.0",
+]
+
+[project.optional-dependencies]
+windows = [
     "wmi>=1.5.1",
+    "pywin32>=310; platform_system=='Windows'",
 ]
 
 [dependency-groups]

@@ -1,0 +1,28 @@
+# Git Commands for pushing to GitHub
+
+# Initialize Git repository
+git init
+
+# Add all files to the repository
+git add .
+
+# Commit the changes
+git commit -m "Initial commit of gem-assist-linux"
+
+# Add the remote repository
+git remote add origin https://github.com/DragonL57/gem-assist-linux.git
+
+# Set the main branch
+git branch -M main
+
+# Push to GitHub
+git push -u origin main
+
+# If you get a credentials error, you may need to:
+# 1. Generate a Personal Access Token (PAT) on GitHub
+# 2. Use that token instead of your password
+
+# For subsequent updates:
+git add .
+git commit -m "Update description"
+git push

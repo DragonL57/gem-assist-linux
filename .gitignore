@@ -1,21 +1,66 @@
 # Python-generated files
-*__pycache__/
-*.py[oc]
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
 build/
+develop-eggs/
 dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
 wheels/
-*.egg-info
+*.egg-info/
+.installed.cfg
+*.egg
 
-# VS Code ignores
-.vscode/
-
-.venv
+# Virtual environments
 .env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
 
-.pytest_cache
+# Editor/IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
 
-chats
+# Project specific
+chats/
 ai-log.txt
-
 uv.lock
 pypdl.log
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Distribution / packaging
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
