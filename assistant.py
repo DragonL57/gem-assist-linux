@@ -15,6 +15,8 @@ import pickle
 from colorama import Fore, Style
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.theme import Theme
+from rich.text import Text
 import config as conf
 
 from func_to_schema import function_to_json_schema
@@ -25,6 +27,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Define a custom theme for the application
+custom_theme = Theme({
+    "info": "cyan",
+    "warning": "yellow",
+    "error": "bold red",
+    "success": "bold green",
+    "user": "bold magenta",
+    "assistant": "bold green",
+    "tool": "cyan",
+    "header": "bold blue on default",
+    "command": "bold yellow",
+})
 
 class Assistant:
 
@@ -45,7 +59,7 @@ class Assistant:
         if system_instruction:
             self.messages.append({"role": "system", "content": system_instruction})
 
-        self.console = Console()
+        self.console = Console(theme=custom_theme)
 
     def send_message(self, message):
         self.messages.append({"role": "user", "content": message})
@@ -53,12 +67,10 @@ class Assistant:
         return self.__process_response(response)
 
     def print_ai(self, msg: str):
-        print(f"{Fore.YELLOW}┌{'─' * 58}┐{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}│ {Fore.GREEN}{self.name}:{Style.RESET_ALL} ", end="")
-        self.console.print(
-            Markdown(msg.strip() if msg else ""), end="", soft_wrap=True, no_wrap=False
-        )
-        print(f"{Fore.YELLOW}└{'─' * 58}┘{Style.RESET_ALL}")
+        # Simple display without panels
+        self.console.print(f"[assistant]{self.name}:[/] ", end="")
+        self.console.print(Markdown(msg.strip() if msg else ""))
+        print() # Add a blank line after assistant response
 
     def get_completion(self):
         """Get a completion from the model with the current messages and tools."""
@@ -183,8 +195,6 @@ class Assistant:
         final_response = response_message
 
         # Multi-turn parallel tool calling
-        # This will keep checking for tool calls and will call them
-        # if any tools return an error it will be sent back to the AI
         try:
             if tool_calls:
                 for tool_call in tool_calls:
@@ -193,9 +203,12 @@ class Assistant:
                     function_to_call = self.available_functions.get(function_name, None)
                     if function_to_call is None:
                         err_msg = f"Function not found with name: {function_name}"
-                        print(f"{Fore.RED}Error: {err_msg}{Style.RESET_ALL}")
+                        self.console.print(f"[error]Error: {err_msg}[/]")
                         self.add_toolcall_output(tool_call.id, function_name, err_msg)
                         continue
+
+                    # Display tool call info with a simple line, no panel
+                    self.console.print(f"[tool]Using tool: {function_name}[/]")
 
                     function_args = json.loads(tool_call.function.arguments)
 
@@ -210,15 +223,14 @@ class Assistant:
                     try:
                         function_response = function_to_call(**function_args)
                         if final_response.content:
-                            print(
-                                f"{Fore.YELLOW}│ {Fore.GREEN}{self.name}:{Style.RESET_ALL} {Style.DIM}{Fore.WHITE}{final_response.content.strip()}{Style.RESET_ALL}{Style.RESET_ALL}"
-                            )
-                        # response of tool
+                            # Show thinking without panel
+                            self.console.print("[dim]" + final_response.content.strip() + "[/dim]")
+                        
                         self.add_toolcall_output(
                             tool_call.id, function_name, function_response
                         )
                     except Exception as e:
-                        print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+                        self.console.print(f"[error]Error: {e}[/]")
                         self.add_toolcall_output(
                             tool_call.id, tool_call.function.name, str(e)
                         )
@@ -227,7 +239,6 @@ class Assistant:
                 final_response = self.get_completion()
 
                 tool_calls = final_response.choices[0].message.tool_calls
-                # if no more tool calls end and return
                 if not tool_calls:
                     response_message = final_response.choices[0].message
                     self.messages.append(response_message)
@@ -244,11 +255,14 @@ class Assistant:
                 final_response, print_response=print_response
             )
         except Exception as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            self.console.print(f"[error]Error: {e}[/]")
 
 
-if __name__ == "__main__":
+# Main function implementation
+def main():
+    """Main entry point for the assistant when imported as a module."""
     colorama.init(autoreset=True)
+    console = Console(theme=custom_theme)
 
     notes = ""
     if os.path.exists("./ai-log.txt"):
@@ -269,37 +283,43 @@ if __name__ == "__main__":
     command = gem.CommandExecuter.register_commands(
         gem.builtin_commands.COMMANDS + [assistant.save_session, assistant.load_session, assistant.reset_session]
     )
-    # set command prefix (default is /)
-    # CommandExecuter.command_prefix = "/"
 
     if conf.CLEAR_BEFORE_START:
         gem.clear_screen()
 
-    gem.print_header(f"{conf.NAME} CHAT INTERFACE")
+    # Simple header without panels
+    console.print()
+    console.print(f"[header]{conf.NAME} CHAT INTERFACE[/]", justify="center", style="bold")
+    console.print(f"Using model: [bold]{conf.MODEL}[/] • Type [command]/help[/] for commands.", justify="center")
+    console.print()
+
     while True:
         try:
-            print(f"{Fore.CYAN}┌{'─' * 58}┐{Style.RESET_ALL}")
-            msg = input(f"{Fore.CYAN}│ {Fore.MAGENTA}You:{Style.RESET_ALL} ")
-            print(f"{Fore.CYAN}└{'─' * 58}┘{Style.RESET_ALL}")
-
+            # Get user message with a colored "You:" prompt instead of an arrow
+            console.print("[user]You:[/] ", end="", style="bold magenta")
+            msg = input("")
+            
             if not msg:
                 continue
 
             if msg.startswith("/"):
                 CommandExecuter.execute(msg)
                 continue
-
+                
+            # Don't echo the user's message again, as it's already displayed with the prompt
+            # Just send it directly to the assistant
             assistant.send_message(msg)
 
         except KeyboardInterrupt:
-            print(
-                f"\n\n{Fore.GREEN}Chat session interrupted.{Style.RESET_ALL}"
-            )
+            console.print("\n\n[success]Chat session interrupted.[/]")
             break
         except InvalidCommand as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            console.print(f"[error]Error: {e}[/]")
         except CommandNotFound as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            console.print(f"[error]Error: {e}[/]")
         except Exception as e:
-            print(f"{Fore.RED}An error occurred: {e}{Style.RESET_ALL}")
+            console.print(f"[error]An error occurred: {e}[/]")
             traceback.print_exc()
+
+if __name__ == "__main__":
+    main()

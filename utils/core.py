@@ -6,36 +6,75 @@ These functions are used across the various tools modules.
 import os
 import colorama
 from colorama import Fore, Style
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.theme import Theme
+from rich.markdown import Markdown
+from rich.table import Table
+from rich.box import ROUNDED
 
 # Initialize colorama
 colorama.init(autoreset=True)
 
+# Create a Rich console with a custom theme
+theme = Theme({
+    "tool": "cyan",
+    "arg_name": "yellow",
+    "arg_value": "bright_white",
+    "success": "green",
+    "error": "bold red",
+    "warning": "yellow",
+    "info": "blue"
+})
+
+console = Console(theme=theme)
+
 def tool_message_print(msg: str, args: list[tuple[str, str]] = None):
     """
-    Prints a tool message with the given message and arguments.
+    Prints a tool message with the given message and arguments using Rich formatting.
 
     Args:
         msg: The message to print.
         args: A list of tuples containing the argument name and value. Optional.
     """
-    full_msasage = f"{Fore.CYAN}[TOOL]{Style.RESET_ALL} {Fore.WHITE}{msg}"
+    # Create a table for the tool info with a rounded box
+    table = Table(box=ROUNDED, show_header=False, show_edge=False, expand=False)
+    table.add_column("Key", style="tool")
+    table.add_column("Value")
+    
+    # Add the tool name as the first row
+    table.add_row("[tool]TOOL[/]", f"[bright_white]{msg}[/]")
+    
+    # Add arguments as rows if provided
     if args:
-        for arg in args:
-            full_msasage += f" [{Fore.YELLOW}{arg[0]}{Fore.WHITE}={arg[1]}]"
-    print(full_msasage)
+        for arg_name, arg_value in args:
+            table.add_row(f"[arg_name]{arg_name}[/]", f"[arg_value]{arg_value}[/]")
+    
+    # Add a subtle border around the tool information
+    panel = Panel(
+        table,
+        border_style="cyan",
+        padding=(0, 1),
+        expand=False
+    )
+    console.print(panel)
 
 def tool_report_print(msg: str, value: str, is_error: bool = False):
     """
-    Print when a tool needs to put out a message as a report
+    Print when a tool needs to put out a message as a report with enhanced formatting.
 
     Args:
         msg: The message to print.
         value: The value to print.
         is_error: Whether this is an error message. If True, value will be printed in red.
     """
-    value_color = Fore.RED if is_error else Fore.YELLOW
-    full_msasage = f"{Fore.CYAN}  ├─{Style.RESET_ALL} {msg} {value_color}{value}"
-    print(full_msasage)
+    style = "error" if is_error else "success"
+    prefix = "❌" if is_error else "✓"
+    
+    console.print(
+        f"  {prefix} {msg} [bold {style}]{value}[/]"
+    )
 
 def write_note(message: str):
     """
