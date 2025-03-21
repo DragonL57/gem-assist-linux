@@ -364,6 +364,27 @@ class Assistant:
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls
 
+        # Only display reasoning if debug mode is enabled
+        if conf.DEBUG_MODE:
+            # Check for model_reasoning in various possible locations
+            reasoning = None
+            if hasattr(response, 'model_reasoning'):
+                reasoning = response.model_reasoning
+            elif hasattr(response, '_hidden_params') and hasattr(response._hidden_params, 'model_reasoning'):
+                reasoning = response._hidden_params.model_reasoning
+            elif hasattr(response, 'completion_create_params') and 'model_reasoning' in response.completion_create_params:
+                reasoning = response.completion_create_params['model_reasoning']
+            
+            # Extract from litellm debug info if available
+            if reasoning is None and hasattr(litellm, '_debug_log'):
+                for log in litellm._debug_log:
+                    if isinstance(log, dict) and 'model_reasoning' in log:
+                        reasoning = log['model_reasoning']
+            
+            if reasoning:
+                self.console.print(f"[dim cyan]Model reasoning:[/] [dim]{reasoning}[/]")
+                self.console.print()  # Add a blank line for readability
+
         self.messages.append(response_message)
         final_response = response_message
 
@@ -372,7 +393,7 @@ class Assistant:
             if tool_calls:
                 # Show model's reasoning before tool calls if present
                 if response_message.content and print_response:
-                    self.console.print("[dim italic]Model reasoning: " + response_message.content.strip() + "[/]")
+                    self.console.print("[dim italic]Model thinking: " + response_message.content.strip() + "[/]")
                     self.console.print()  # Add space for readability
                 
                 self.console.print(f"[bold cyan]Running {len(tool_calls)} tool operation(s):[/]")
@@ -474,7 +495,13 @@ def main():
     """Main entry point for the assistant when imported as a module."""
     colorama.init(autoreset=True)
     console = Console(theme=custom_theme)
-
+    
+    # Only enable litellm debug mode if DEBUG_MODE is enabled
+    if conf.DEBUG_MODE:
+        litellm._turn_on_debug()
+        console.print("[dim cyan]Debug mode is enabled. Model reasoning will be displayed.[/]")
+        console.print()
+    
     # Setup prompt_toolkit with history and styling
     history_file = os.path.join(os.path.expanduser("~"), ".gem_assist_history")
     session = PromptSession(

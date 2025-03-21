@@ -37,7 +37,7 @@ CLEAR_BEFORE_START = CLEAR_TERMINAL  # For backward compatibility
 TAKE_ONLY_ONE_MESSAGE = True
 
 # Verbose terminal, shows system prompts of messages
-DEBUG_MODE = True  # Make sure this is set to True to see model reasoning
+DEBUG_MODE = False  # Make sure this is set to True to see model reasoning
 
 # Timeout in seconds for duckduckgo and webpages
 # (the smaller the better but might not always be correct results)
