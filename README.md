@@ -5,6 +5,9 @@ Gem-Assist is a Python-based personal assistant that leverages the power of Goog
 ## Features
 
 - **Powered by LLM:** Utilizes LLM's for natural language understanding and generation.
+- **Two-Phase Reasoning:** Uses a deliberate two-step process:
+  1. **Reasoning Phase:** First plans approach without executing tools
+  2. **Execution Phase:** Follows the reasoning plan to execute tools and provide answers
 - **In-depth Research:** Performs multiple search iterations using various tools to gather comprehensive information.
 - **Tool-based architecture:** Equipped with a variety of tools for tasks like:
   - Web searching (DuckDuckGo, Google, Meta-search)

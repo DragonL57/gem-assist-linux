@@ -38,9 +38,21 @@ def list_commands():
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+@cmd(['reasoning', 'plan'], "Shows the assistant's last reasoning plan")
+def show_reasoning():
+    """
+    Show the assistant's last reasoning plan.
+    
+    This command displays the reasoning plan that the assistant developed
+    before executing tools and providing a final answer.
+    """
+    # This is just a placeholder - the actual implementation is in the Assistant class
+    print("Use this command in the chat interface to see the assistant's reasoning plan.")
+
 COMMANDS = [
     exit_chat,
     show_help,
     list_commands,
-    clear_screen
+    clear_screen,
+    show_reasoning
 ]

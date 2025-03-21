@@ -46,6 +46,7 @@ custom_theme = Theme({
     "header": "bold blue on default",
     "command": "bold yellow",
     "debug": "dim cyan",  # Add specific debug theme
+    "reasoning": "dim yellow",  # New style for reasoning phase output
 })
 
 # Create a console with the custom theme
@@ -57,6 +58,22 @@ SEARCH_TOOLS = [
     "google_search", "meta_search", "reddit_search", 
     "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"
 ]
+
+# Prompts for the reasoning phase
+REASONING_SYSTEM_PROMPT = """
+You are now in the REASONING PHASE. 
+Your task is to think through how to solve the user's query step by step WITHOUT executing any actions.
+Analyze what tools might be needed, what information you need to gather, and outline a clear plan.
+DO NOT provide the actual answer or execute any tools yet. 
+Just develop a detailed reasoning plan that will guide your execution in the next phase.
+"""
+
+EXECUTION_SYSTEM_PROMPT = """
+You are now in the EXECUTION PHASE.
+Follow the reasoning plan you developed in the previous phase.
+Execute the necessary tools, gather the information, and provide a comprehensive answer.
+Make sure to address all points from your reasoning plan.
+"""
 
 class Assistant:
     """
@@ -78,6 +95,7 @@ class Assistant:
         self.available_functions = {func.__name__: func for func in tools}
         self.tools = list(map(function_to_json_schema, tools))
         self.console = Console(theme=custom_theme)
+        self.last_reasoning = None
 
         if system_instruction:
             self.messages.append({"role": "system", "content": system_instruction})
@@ -85,25 +103,102 @@ class Assistant:
     # ==================== Core Messaging Functions ====================
 
     def send_message(self, message: str) -> Dict[str, Any]:
-        """Process and respond to user messages."""
+        """
+        Process user message using a two-phase approach:
+        1. Reasoning phase: Plan the approach without executing tools
+        2. Execution phase: Execute the plan and provide the answer
+        """
         try:
+            # Phase 1: Reasoning
+            self.console.print("[bold blue]Reasoning Phase:[/]")
+            reasoning = self.get_reasoning(message)
+            self.last_reasoning = reasoning
+            
+            # Display the reasoning
+            self.console.print("[reasoning]" + reasoning + "[/]")
+            self.console.print("[cyan]───────────────────────────────────────[/]")
+            
+            # Phase 2: Execution
+            self.console.print("[bold blue]Execution Phase:[/]")
             self.messages.append({"role": "user", "content": message})
-            response = self.get_completion_with_retry()
+            
+            # Add the reasoning as context for the execution phase
+            execution_messages = self.messages.copy()
+            execution_messages.append({
+                "role": "system", 
+                "content": f"{EXECUTION_SYSTEM_PROMPT}\n\nYour previous reasoning: {reasoning}"
+            })
+            
+            # Get the execution response
+            response = self.get_completion_with_retry(execution_messages)
             return self.__process_response(response)
+            
         except Exception as e:
             error_message = f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?"
             self.console.print(f"[error]Message processing error: {e}[/]")
             self.add_msg_assistant(error_message)
             self.print_ai(error_message)
             return {"error": str(e)}
+
+    def get_reasoning(self, message: str) -> str:
+        """
+        Get the reasoning plan for the given message without executing tools.
+        This is the first phase where the assistant thinks through the problem.
         
-    def get_completion_with_retry(self, max_retries: int = 3) -> Any:
+        Args:
+            message: The user's message
+            
+        Returns:
+            The reasoning plan as a string
+        """
+        # Create a temporary messages list for the reasoning phase
+        reasoning_messages = []
+        
+        # Add the original system instruction if available
+        if self.system_instruction:
+            reasoning_messages.append({"role": "system", "content": self.system_instruction})
+        
+        # Add the reasoning-specific system instruction
+        reasoning_messages.append({"role": "system", "content": REASONING_SYSTEM_PROMPT})
+        
+        # Add conversation history (limited to last few messages for context)
+        history_limit = 4  # Limit to last 2 exchanges (4 messages)
+        if len(self.messages) > 1:  # Skip system message
+            for msg in self.messages[-history_limit:]:
+                if msg["role"] != "system":
+                    reasoning_messages.append(msg)
+        
+        # Add the user's new message
+        reasoning_messages.append({"role": "user", "content": f"TASK: {message}\n\nProvide your step-by-step reasoning plan."})
+        
+        # Make the API call without tools for the reasoning phase
+        try:
+            response = litellm.completion(
+                model=self.model,
+                messages=reasoning_messages,
+                temperature=conf.TEMPERATURE,
+                top_p=conf.TOP_P,
+                max_tokens=conf.MAX_TOKENS or 4096,  # Limit reasoning length
+                seed=conf.SEED,
+                safety_settings=conf.SAFETY_SETTINGS
+            )
+            
+            reasoning = response.choices[0].message.content.strip()
+            return reasoning
+            
+        except Exception as e:
+            self.console.print(f"[error]Error in reasoning phase: {e}[/]")
+            return f"I encountered an error while planning my approach: {e}. I'll try to answer directly."
+
+    def get_completion_with_retry(self, messages: List[Dict[str, Any]] = None, max_retries: int = 3) -> Any:
         """Get a completion from the model with retry logic."""
+        msgs = messages if messages is not None else self.messages
+        
         for attempt in range(max_retries):
             try:
                 return litellm.completion(
                     model=self.model,
-                    messages=self.messages,
+                    messages=msgs,
                     tools=self.tools,
                     temperature=conf.TEMPERATURE,
                     top_p=conf.TOP_P,
@@ -381,6 +476,16 @@ class Assistant:
         self.messages = []
         if self.system_instruction:
             self.messages.append({"role": "system", "content": self.system_instruction})
+
+    @cmd(["reasoning"], "Displays the last reasoning plan from the assistant.")
+    def show_last_reasoning(self) -> None:
+        """Display the last reasoning plan that the assistant generated."""
+        if self.last_reasoning:
+            self.console.print("\n[bold blue]Last Reasoning Plan:[/]")
+            self.console.print("[reasoning]" + self.last_reasoning + "[/]")
+            self.console.print()
+        else:
+            self.console.print("[warning]No reasoning plan available yet.[/]")
 
     # ==================== Output/Display Functions ====================
 
