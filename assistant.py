@@ -51,8 +51,6 @@ custom_theme = Theme({
 # Create a console with the custom theme
 console = Console(theme=custom_theme)
 
-from gem.agents import AgentRegistry, OrchestratorAgent, FileSystemAgent, ResearchAgent, SystemAgent
-
 class Assistant:
 
     def __init__(
@@ -73,121 +71,17 @@ class Assistant:
         if system_instruction:
             self.messages.append({"role": "system", "content": system_instruction})
 
-        # Initialize the agent registry and specialized agents
-        self.agent_registry = AgentRegistry()
-        
-        # Create specialized agents
-        self.file_agent = FileSystemAgent(model=model, console=self.console)
-        self.research_agent = ResearchAgent(model=model, console=self.console)
-        self.system_agent = SystemAgent(model=model, console=self.console)
-        
-        # Register all agents
-        self.agent_registry.register("FileSystem", self.file_agent)
-        self.agent_registry.register("Research", self.research_agent)
-        self.agent_registry.register("System", self.system_agent)
-        
-        # Create orchestrator agent
-        self.orchestrator = OrchestratorAgent(
-            model=model,
-            agent_registry=self.agent_registry,
-            system_instruction=system_instruction,
-            console=self.console
-        )
-
     def send_message(self, message):
+        """Process and respond to user messages"""
         try:
-            # Add context from previous messages for better analysis
-            prev_msgs = ""
-            if len(self.messages) > 0 and len(self.messages) <= 6:
-                # Include up to 3 previous exchanges for context
-                prev_msgs = "\n".join([
-                    f"{msg['role'].upper()}: {msg['content'][:100]}..." 
-                    for msg in self.messages[-6:]
-                ])
-            
-            # Let the orchestrator decide if this is a complex query
-            try:
-                # For stability and error resistance, we'll use a simpler approach to determine complexity
-                is_complex = self._is_query_complex(message)
-                
-                if is_complex and conf.USE_MULTI_AGENT:
-                    self.console.print("[dim]Query requires multi-agent processing...[/]")
-                    try:
-                        result = self.orchestrator.process_query(message)
-                        
-                        # Add the result to our message history
-                        self.messages.append({"role": "user", "content": message})
-                        self.messages.append({"role": "assistant", "content": result["response"]})
-                        
-                        # Print the final response
-                        self.print_ai(result["response"])
-                        return {"content": result["response"]}
-                    except litellm.RateLimitError as e:
-                        self.console.print(f"[error]Rate limit error: {e}. Falling back to standard processing after delay.[/]")
-                        time.sleep(5)  # Delay to respect rate limits
-                        self.messages.append({"role": "user", "content": message})
-                        response = self.get_completion_with_retry()
-                        return self.__process_response(response)
-                    except Exception as agent_error:
-                        self.console.print(f"[error]Multi-agent processing error: {agent_error}. Falling back to standard processing.[/]")
-                        # Fallback to standard processing if multi-agent processing fails
-                        self.messages.append({"role": "user", "content": message})
-                        response = self.get_completion_with_retry()
-                        return self.__process_response(response)
-                else:
-                    # Use standard processing for simpler queries
-                    self.messages.append({"role": "user", "content": message})
-                    response = self.get_completion_with_retry()
-                    return self.__process_response(response)
-            except Exception as e:
-                self.console.print(f"[error]Analysis error: {e}. Falling back to standard processing.[/]")
-                # Fallback to standard processing if analysis fails
-                self.messages.append({"role": "user", "content": message})
-                response = self.get_completion_with_retry()
-                return self.__process_response(response)
+            self.messages.append({"role": "user", "content": message})
+            response = self.get_completion_with_retry()
+            return self.__process_response(response)
         except Exception as e:
             self.console.print(f"[error]Message processing error: {e}[/]")
-            self.messages.append({"role": "user", "content": message})
             self.add_msg_assistant(f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?")
             self.print_ai(f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?")
             return {"error": str(e)}
-    
-    def _is_query_complex(self, query: str) -> bool:
-        """Simplified method to determine if a query is complex enough for multi-agent processing."""
-        query_lower = query.lower().strip()
-        
-        # Very short queries are usually simple
-        if len(query_lower) < 5:
-            return False
-            
-        # Check for complexity indicators
-        complexity_indicators = [
-            # Multiple questions or operations
-            "and", "also", "additionally", "then", "after", "before", "while",
-            # Information seeking
-            "what", "how", "why", "explain", "describe", "tell me about",
-            # Comparison
-            "compare", "difference", "versus", "vs",
-            # Tool usage likely needed
-            "search", "find", "look up", "research", "system", "file", "directory",
-            # Analysis
-            "analyze", "evaluate", "assess", "review"
-        ]
-        
-        # Count complexity indicators
-        indicator_count = sum(1 for indicator in complexity_indicators if indicator in query_lower)
-        
-        # Higher threshold for common words
-        if indicator_count >= 2:
-            return True
-            
-        # Check for multiple distinct concepts by looking at word variety
-        words = set(w.lower() for w in query_lower.split() if len(w) > 3)
-        if len(words) >= 4:  # If query has 4+ distinct words of length > 3
-            return True
-            
-        # Default to simple
-        return False
         
     def get_completion_with_retry(self, max_retries=3):
         """Get a completion from the model with retry logic."""
@@ -388,7 +282,7 @@ class Assistant:
         self.messages.append(response_message)
         final_response = response_message
 
-        # Multi-turn parallel tool calling
+        # Process tool calls if present
         try:
             if tool_calls:
                 # Show model's reasoning before tool calls if present
@@ -438,13 +332,37 @@ class Assistant:
                         function_response = function_to_call(**function_args)
                         execution_time = time.time() - start_time
                         
-                        # Show execution time and brief result
-                        if isinstance(function_response, str) and len(function_response) > 100:
-                            brief_response = function_response[:97] + "..."
-                        else:
-                            brief_response = str(function_response)
+                        # Define search-related tools for concise output
+                        search_tools = [
+                            "duckduckgo_search_tool", "advanced_duckduckgo_search", 
+                            "google_search", "meta_search", "reddit_search", 
+                            "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"
+                        ]
                         
-                        self.console.print(f"[green]✓ Completed in {execution_time:.4f}s: {brief_response}[/]")
+                        # Show different output format for search tools
+                        if function_name in search_tools:
+                            # For search tools, just show count of results
+                            result_count = 0
+                            if isinstance(function_response, list):
+                                result_count = len(function_response)
+                            elif isinstance(function_response, dict) and 'pages' in function_response:
+                                result_count = len(function_response.get('pages', []))
+                            elif isinstance(function_response, dict):
+                                # For nested results like meta_search
+                                for source, results in function_response.items():
+                                    if isinstance(results, list):
+                                        result_count += len(results)
+                                    
+                            self.console.print(f"[green]✓ Completed in {execution_time:.4f}s: received {result_count} results[/]")
+                        else:
+                            # For non-search tools, show brief result as before
+                            if isinstance(function_response, str) and len(function_response) > 100:
+                                brief_response = function_response[:97] + "..."
+                            else:
+                                brief_response = str(function_response)
+                            
+                            self.console.print(f"[green]✓ Completed in {execution_time:.4f}s: {brief_response}[/]")
+                        
                         self.console.print()  # Add space for readability
                         
                         self.add_toolcall_output(

@@ -171,30 +171,3 @@ MAX_REDDIT_SEARCH_RESULTS: int = 5
 
 # Maximum amount of reddit comments to load when looking into specific reddit posts, -1 for no limit
 MAX_REDDIT_POST_COMMENTS: int = -1
-
-# Multi-agent framework settings
-DEBUG = True  # Enable to see agent reasoning steps
-USE_MULTI_AGENT = False  # Enable multi-agent framework to test the fixed implementation
-MULTI_AGENT_THRESHOLD = "low"  # Options: "low", "medium", "high" - controls how aggressively to use multi-agent mode
-AGENT_TIMEOUT = 45  # Maximum seconds for an agent to process a task (increased to handle rate limiting)
-RETRY_BACKOFF_BASE = 2.0  # Base for exponential backoff
-MAX_RETRIES = 3  # Maximum number of retries per agent call
-RETRY_INITIAL_WAIT = 4  # Initial wait time in seconds before first retry
-
-# Multi-agent system configuration message
-MULTI_AGENT_MESSAGE = """
-# Multi-agent system is ENABLED
-# 
-# Current implementation features:
-# - Improved error handling for Vertex AI function call mismatches
-# - Direct LLM calls without tools for planning and synthesis
-# - Exponential backoff for rate limit handling
-# - Simplified communication between agents
-# - More resilience against API errors
-# 
-# To disable, set USE_MULTI_AGENT = False in config.py
-"""
-
-# Print the multi-agent message if enabled
-if USE_MULTI_AGENT:
-    print("\033[93m" + MULTI_AGENT_MESSAGE + "\033[0m")

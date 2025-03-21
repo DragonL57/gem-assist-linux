@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Added more tools"
+git commit -m "Completely remove multi-agent framework"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

@@ -24,6 +24,7 @@ A short disclaimer this was originally made to be my personal assistant so it mi
 - **Memory:** Can save notes between conversation and remember them.
 - **Saving Conversation:** Save and load previous conversations.
 - **Commands:** Supports creating/executing (code), use `/commands` for more information.
+- **Clean UI for Search Results:** Search tools show only completion time and result count instead of verbose content.
 - **Extension:** For now you are required to write some code to extend its capabilities like adding commands to `CommandExecutor` or making new tools, there should be enough examples in `gem/builtin_commands.py` for commands and `utility.py` for tools
 
 ## Getting Started
