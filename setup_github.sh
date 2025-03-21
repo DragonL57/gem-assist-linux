@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Multi-agent update"
+git commit -m "Improved multi-agent"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

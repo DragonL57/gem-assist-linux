@@ -102,40 +102,118 @@ class Assistant:
                 ])
             
             # Let the orchestrator decide if this is a complex query
-            complexity_analysis = self.orchestrator.analyze_complexity(
-                f"CONTEXT (Previous messages):\n{prev_msgs}\n\nCURRENT QUERY: {message}"
-            )
-            
-            # Use the orchestrator's analysis without any additional hardcoding
-            if complexity_analysis["is_complex"]:
-                self.console.print("[dim]Query requires multi-agent processing...[/]")
-                result = self.orchestrator.process_query(message)
+            try:
+                # For stability and error resistance, we'll use a simpler approach to determine complexity
+                is_complex = self._is_query_complex(message)
                 
-                # Add the result to our message history
+                if is_complex and conf.USE_MULTI_AGENT:
+                    self.console.print("[dim]Query requires multi-agent processing...[/]")
+                    try:
+                        result = self.orchestrator.process_query(message)
+                        
+                        # Add the result to our message history
+                        self.messages.append({"role": "user", "content": message})
+                        self.messages.append({"role": "assistant", "content": result["response"]})
+                        
+                        # Print the final response
+                        self.print_ai(result["response"])
+                        return {"content": result["response"]}
+                    except litellm.RateLimitError as e:
+                        self.console.print(f"[error]Rate limit error: {e}. Falling back to standard processing after delay.[/]")
+                        time.sleep(5)  # Delay to respect rate limits
+                        self.messages.append({"role": "user", "content": message})
+                        response = self.get_completion_with_retry()
+                        return self.__process_response(response)
+                    except Exception as agent_error:
+                        self.console.print(f"[error]Multi-agent processing error: {agent_error}. Falling back to standard processing.[/]")
+                        # Fallback to standard processing if multi-agent processing fails
+                        self.messages.append({"role": "user", "content": message})
+                        response = self.get_completion_with_retry()
+                        return self.__process_response(response)
+                else:
+                    # Use standard processing for simpler queries
+                    self.messages.append({"role": "user", "content": message})
+                    response = self.get_completion_with_retry()
+                    return self.__process_response(response)
+            except Exception as e:
+                self.console.print(f"[error]Analysis error: {e}. Falling back to standard processing.[/]")
+                # Fallback to standard processing if analysis fails
                 self.messages.append({"role": "user", "content": message})
-                self.messages.append({"role": "assistant", "content": result["response"]})
-                
-                # Print agent reasoning if debug mode is on
-                if hasattr(conf, 'DEBUG') and conf.DEBUG:
-                    self.console.print("[dim]Agent coordination plan:[/]")
-                    self.console.print(result["plan"])
-                    self.console.print("[dim]Complexity analysis:[/]")
-                    self.console.print(complexity_analysis["reasoning"])
-                
-                # Print the final response
-                self.print_ai(result["response"])
-                return {"content": result["response"]}
-            else:
-                # Use standard processing for simpler queries
-                self.messages.append({"role": "user", "content": message})
-                response = self.get_completion()
+                response = self.get_completion_with_retry()
                 return self.__process_response(response)
         except Exception as e:
-            self.console.print(f"[error]Analysis error: {e}. Falling back to standard processing.[/]")
-            # Fallback to standard processing if analysis fails
+            self.console.print(f"[error]Message processing error: {e}[/]")
             self.messages.append({"role": "user", "content": message})
-            response = self.get_completion()
-            return self.__process_response(response)
+            self.add_msg_assistant(f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?")
+            self.print_ai(f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?")
+            return {"error": str(e)}
+    
+    def _is_query_complex(self, query: str) -> bool:
+        """Simplified method to determine if a query is complex enough for multi-agent processing."""
+        query_lower = query.lower().strip()
+        
+        # Very short queries are usually simple
+        if len(query_lower) < 5:
+            return False
+            
+        # Check for complexity indicators
+        complexity_indicators = [
+            # Multiple questions or operations
+            "and", "also", "additionally", "then", "after", "before", "while",
+            # Information seeking
+            "what", "how", "why", "explain", "describe", "tell me about",
+            # Comparison
+            "compare", "difference", "versus", "vs",
+            # Tool usage likely needed
+            "search", "find", "look up", "research", "system", "file", "directory",
+            # Analysis
+            "analyze", "evaluate", "assess", "review"
+        ]
+        
+        # Count complexity indicators
+        indicator_count = sum(1 for indicator in complexity_indicators if indicator in query_lower)
+        
+        # Higher threshold for common words
+        if indicator_count >= 2:
+            return True
+            
+        # Check for multiple distinct concepts by looking at word variety
+        words = set(w.lower() for w in query_lower.split() if len(w) > 3)
+        if len(words) >= 4:  # If query has 4+ distinct words of length > 3
+            return True
+            
+        # Default to simple
+        return False
+        
+    def get_completion_with_retry(self, max_retries=3):
+        """Get a completion from the model with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                return litellm.completion(
+                    model=self.model,
+                    messages=self.messages,
+                    tools=self.tools,
+                    temperature=conf.TEMPERATURE,
+                    top_p=conf.TOP_P,
+                    max_tokens=conf.MAX_TOKENS or 8192,
+                    seed=conf.SEED,
+                    safety_settings=conf.SAFETY_SETTINGS
+                )
+            except litellm.RateLimitError as e:
+                if attempt == max_retries - 1:
+                    raise
+                delay = 4 * (2 ** attempt)  # 4, 8, 16 seconds
+                self.console.print(f"[yellow]Rate limit error: {e}. Retrying in {delay} seconds...[/]")
+                time.sleep(delay)
+            except Exception as e:
+                if "resource exhausted" in str(e).lower() and attempt < max_retries - 1:
+                    delay = 4 * (2 ** attempt)
+                    self.console.print(f"[yellow]Resource exhausted: {e}. Retrying in {delay} seconds...[/]")
+                    time.sleep(delay)
+                else:
+                    raise
+        
+        raise Exception("Failed to get completion after maximum retries")
 
     def print_ai(self, msg: str):
         """Display the assistant's response with proper formatting and wrapping."""

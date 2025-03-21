@@ -1,19 +1,19 @@
 """
-Multi-agent orchestration framework.
+Initialize the agents module and expose key components.
 """
 
-from .agent_registry import AgentRegistry
 from .base_agent import BaseAgent
+from .agent_registry import AgentRegistry
 from .orchestrator import OrchestratorAgent
 from .file_agent import FileSystemAgent
 from .research_agent import ResearchAgent
 from .system_agent import SystemAgent
 
 __all__ = [
-    'AgentRegistry',
     'BaseAgent',
+    'AgentRegistry',
     'OrchestratorAgent',
     'FileSystemAgent',
     'ResearchAgent',
-    'SystemAgent',
+    'SystemAgent'
 ]
