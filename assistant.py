@@ -46,7 +46,7 @@ custom_theme = Theme({
     "header": "bold blue on default",
     "command": "bold yellow",
     "debug": "dim cyan",  # Add specific debug theme
-    "reasoning": "dim yellow",  # New style for reasoning phase output
+    "reasoning": "dim italic yellow",  # Updated style for reasoning phase output
 })
 
 # Create a console with the custom theme
@@ -114,8 +114,19 @@ class Assistant:
             reasoning = self.get_reasoning(message)
             self.last_reasoning = reasoning
             
-            # Display the reasoning
-            self.console.print("[reasoning]" + reasoning + "[/]")
+            # Display the reasoning with proper markdown rendering
+            # Get console width to enable proper text wrapping
+            console_width = os.get_terminal_size().columns if hasattr(os, 'get_terminal_size') else 80
+            effective_width = console_width - 4  # Allow for some margin
+            
+            # Render the reasoning as markdown with styling
+            self.console.print(
+                Markdown(reasoning, justify="left"),
+                style="dim italic",
+                width=effective_width,
+                overflow="fold",
+                no_wrap=False
+            )
             self.console.print("[cyan]───────────────────────────────────────[/]")
             
             # Phase 2: Execution
@@ -481,8 +492,18 @@ class Assistant:
     def show_last_reasoning(self) -> None:
         """Display the last reasoning plan that the assistant generated."""
         if self.last_reasoning:
+            # Get console width for proper text wrapping
+            console_width = os.get_terminal_size().columns if hasattr(os, 'get_terminal_size') else 80
+            effective_width = console_width - 4  # Allow for some margin
+            
             self.console.print("\n[bold blue]Last Reasoning Plan:[/]")
-            self.console.print("[reasoning]" + self.last_reasoning + "[/]")
+            self.console.print(
+                Markdown(self.last_reasoning, justify="left"),
+                style="dim italic",
+                width=effective_width,
+                overflow="fold",
+                no_wrap=False
+            )
             self.console.print()
         else:
             self.console.print("[warning]No reasoning plan available yet.[/]")
