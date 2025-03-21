@@ -19,7 +19,7 @@ from prompt_toolkit.styles import Style as PromptStyle
 from utils import TOOLS
 import pickle
 
-from colorama import Fore, Style
+from colorama import Fore, Style, Back
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.theme import Theme
@@ -45,7 +45,11 @@ custom_theme = Theme({
     "tool": "cyan",
     "header": "bold blue on default",
     "command": "bold yellow",
+    "debug": "dim cyan",  # Add specific debug theme
 })
+
+# Create a console with the custom theme
+console = Console(theme=custom_theme)
 
 from gem.agents import AgentRegistry, OrchestratorAgent, FileSystemAgent, ResearchAgent, SystemAgent
 
@@ -460,6 +464,10 @@ class Assistant:
             self.console.print(f"[error]Error in processing response: {e}[/]")
             traceback.print_exc()
 
+    def _display_debug_info(self, message):
+        """Display debug information in a dimmed format"""
+        if conf.DEBUG_MODE:
+            console.print(Text(message, style="debug"))
 
 # Main function implementation
 def main():

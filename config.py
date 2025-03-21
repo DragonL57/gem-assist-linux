@@ -30,8 +30,41 @@ SEED = None
 # Script parameters
 
 # Whether to clear the console before starting
-CLEAR_BEFORE_START = True
+CLEAR_TERMINAL = True
+CLEAR_BEFORE_START = CLEAR_TERMINAL  # For backward compatibility
 
+# Whether to take one message at a time
+TAKE_ONLY_ONE_MESSAGE = True
+
+# Verbose terminal, shows system prompts of messages
+DEBUG_MODE = True  # Make sure this is set to True to see model reasoning
+
+# Timeout in seconds for duckduckgo and webpages
+# (the smaller the better but might not always be correct results)
+DUCKDUCKGO_TIMEOUT = 5
+
+# Maximum results for each of the following
+MAX_DUCKDUCKGO_SEARCH_RESULTS = 4
+MAX_REDDIT_SEARCH_RESULTS = 10
+MAX_REDDIT_POST_COMMENTS = -1  # -1 means all comments
+
+# Whether to print OS error messages.
+PRINT_OS_ERROR = False
+
+# These are for visuals there is nothing important in here
+THEME_LOCALS = {
+    "PRIMARY": "#584ea8",
+    "SECONDARY": "#4a4464",
+    "ACCENT": "#7c6f9f",
+    "BACKGROUND": "#f5f5f5",
+    "TEXT": "#333333",
+}
+
+# Helper function to get current system time in nice format
+def get_current_time():
+    """Returns the current time in a readable format."""
+    now = datetime.datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
 
 # Gemini safety settings
 SAFETY_SETTINGS = [
@@ -142,7 +175,7 @@ MAX_REDDIT_POST_COMMENTS: int = -1
 # Multi-agent framework settings
 DEBUG = True  # Enable to see agent reasoning steps
 USE_MULTI_AGENT = False  # Enable multi-agent framework to test the fixed implementation
-MULTI_AGENT_THRESHOLD = "medium"  # Options: "low", "medium", "high" - controls how aggressively to use multi-agent mode
+MULTI_AGENT_THRESHOLD = "low"  # Options: "low", "medium", "high" - controls how aggressively to use multi-agent mode
 AGENT_TIMEOUT = 45  # Maximum seconds for an agent to process a task (increased to handle rate limiting)
 RETRY_BACKOFF_BASE = 2.0  # Base for exponential backoff
 MAX_RETRIES = 3  # Maximum number of retries per agent call

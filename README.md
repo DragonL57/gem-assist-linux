@@ -36,29 +36,46 @@ A short disclaimer this was originally made to be my personal assistant so it mi
 
 ### Installation
 
-1.  Clone the repository:
+1. Clone the repository:
 
 ```bash
 git clone https://github.com/Fus3n/gem-assist
 cd gem-assist
 ```
 
-2.  Install dependencies using uv:
-
-This will create venv if it doesn't exist
+2. Install core dependencies using uv:
 
 ```bash
-uv sync
+uv pip install -e .
 ```
 
-3.  Set up environment variables:
-    - Create a `.env` file in the project root.
-    - Add your Google Cloud API key:
-      ```
-      GEMINI_API_KEY=YOUR_API_KEY # or any other API key with proper key name, if used
-      REDDIT_ID=YOUR_REDDIT_CLIENT_ID # (Optional, for Reddit tools)
-      REDDIT_SECRET=YOUR_REDDIT_CLIENT_SECRET # (Optional, for Reddit tools)
-      ```
+3. Install optional dependencies based on your needs:
+
+```bash
+# For all optional dependencies
+uv pip install -e ".[all]"
+
+# Or install specific feature groups
+uv pip install -e ".[data-analysis,web-scraping]"
+
+# Available feature groups:
+# - data-analysis: pandas, numpy, matplotlib
+# - web-scraping: requests, beautifulsoup4
+# - dynamic-web: selenium
+# - documents: PyPDF2, python-docx
+# - google-search: google-api-python-client
+```
+
+These optional dependencies provide enhanced functionality for specific tools. The core functionality will work without them, but certain advanced features may be limited.
+
+4. Set up environment variables:
+   - Create a `.env` file in the project root.
+   - Add your Google Cloud API key:
+     ```
+     GEMINI_API_KEY=YOUR_API_KEY # or any other API key with proper key name, if used
+     REDDIT_ID=YOUR_REDDIT_CLIENT_ID # (Optional, for Reddit tools)
+     REDDIT_SECRET=YOUR_REDDIT_CLIENT_SECRET # (Optional, for Reddit tools)
+     ```
 
 ### Usage
 
@@ -88,10 +105,12 @@ And more
 
 gem-assist comes with a set of built-in tools that you can use in your conversations. These tools are defined in the `utility.py` file, some of the functionalities are:
 
-- **Web Search:** `duckduckgo_search_tool`
+- **Web Search:** `duckduckgo_search_tool`, `advanced_duckduckgo_search`, `google_search`, `meta_search`
 - **File System:** `list_dir`, `read_file`, `write_files`, `create_directory`, `copy_file`, `move_file`, `rename_file`, `rename_directory`, `get_file_metadata`, `get_directory_size`, `get_multiple_directory_size`
 - **System:** `get_system_info`, `run_shell_command`, `get_current_time`, `get_current_directory`, `get_drives`, `get_environment_variable`
-- **Web Interaction:** `get_website_text_content`, `http_get_request`, `open_url`, `download_file_from_url`
+- **Web Interaction:** `get_website_text_content`, `http_get_request`, `open_url`, `download_file_from_url`, `extract_structured_data`, `extract_tables_to_dataframes`, `scrape_with_pagination`, `scrape_dynamic_content`
+- **Document Processing:** `convert_document`, `read_excel_file`, `read_excel_structure`, `read_pdf_text`, `convert_excel_to_format`
+- **Code Execution:** `execute_python_code`, `analyze_pandas_dataframe`
 - **Reddit:** `reddit_search`, `get_reddit_post`, `reddit_submission_comments`
 - **Utility:** `evaluate_math_expression`, `zip_archive_files`, `zip_extract_files`, `write_note`, `read_note`
 
