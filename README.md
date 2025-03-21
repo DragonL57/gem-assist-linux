@@ -11,9 +11,9 @@ A short disclaimer this was originally made to be my personal assistant so it mi
 ## Features
 
 - **Powered by LLM:** Utilizes LLM's for natural language understanding and generation.
-
+- **In-depth Research:** Performs multiple search iterations using various tools to gather comprehensive information.
 - **Tool-based architecture:** Equipped with a variety of tools for tasks like:
-  - Web searching (DuckDuckGo)
+  - Web searching (DuckDuckGo, Google, Meta-search)
   - File system operations (listing directories, reading/writing files, etc.)
   - System information retrieval
   - Reddit interaction
