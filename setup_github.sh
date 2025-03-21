@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Update UI for reasoning process"
+git commit -m "Create separate Reasoning and Execution prompt"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

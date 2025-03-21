@@ -59,21 +59,7 @@ SEARCH_TOOLS = [
     "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"
 ]
 
-# Prompts for the reasoning phase
-REASONING_SYSTEM_PROMPT = """
-You are now in the REASONING PHASE. 
-Your task is to think through how to solve the user's query step by step WITHOUT executing any actions.
-Analyze what tools might be needed, what information you need to gather, and outline a clear plan.
-DO NOT provide the actual answer or execute any tools yet. 
-Just develop a detailed reasoning plan that will guide your execution in the next phase.
-"""
-
-EXECUTION_SYSTEM_PROMPT = """
-You are now in the EXECUTION PHASE.
-Follow the reasoning plan you developed in the previous phase.
-Execute the necessary tools, gather the information, and provide a comprehensive answer.
-Make sure to address all points from your reasoning plan.
-"""
+# No longer need to define prompts here, they're imported from config
 
 class Assistant:
     """
@@ -131,16 +117,28 @@ class Assistant:
             
             # Phase 2: Execution
             self.console.print("[bold blue]Execution Phase:[/]")
-            self.messages.append({"role": "user", "content": message})
             
-            # Add the reasoning as context for the execution phase
-            execution_messages = self.messages.copy()
+            # Create a new message list for execution phase
+            execution_messages = []
+            
+            # Add the base execution system prompt
             execution_messages.append({
                 "role": "system", 
-                "content": f"{EXECUTION_SYSTEM_PROMPT}\n\nYour previous reasoning: {reasoning}"
+                "content": f"{conf.EXECUTION_SYSTEM_PROMPT}\n\nYour reasoning plan: {reasoning}"
             })
             
-            # Get the execution response
+            # Add the conversation history (except the system message)
+            for msg in self.messages:
+                if msg["role"] != "system":
+                    execution_messages.append(msg)
+                    
+            # Add the user's message
+            execution_messages.append({"role": "user", "content": message})
+            
+            # Store the user message in the main message history
+            self.messages.append({"role": "user", "content": message})
+            
+            # Get the execution response with completely separate message context
             response = self.get_completion_with_retry(execution_messages)
             return self.__process_response(response)
             
@@ -165,12 +163,8 @@ class Assistant:
         # Create a temporary messages list for the reasoning phase
         reasoning_messages = []
         
-        # Add the original system instruction if available
-        if self.system_instruction:
-            reasoning_messages.append({"role": "system", "content": self.system_instruction})
-        
-        # Add the reasoning-specific system instruction
-        reasoning_messages.append({"role": "system", "content": REASONING_SYSTEM_PROMPT})
+        # Use ONLY the reasoning system prompt without the base system prompt
+        reasoning_messages.append({"role": "system", "content": conf.REASONING_SYSTEM_PROMPT})
         
         # Add conversation history (limited to last few messages for context)
         history_limit = 4  # Limit to last 2 exchanges (4 messages)
