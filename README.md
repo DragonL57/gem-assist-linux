@@ -2,12 +2,6 @@
 
 Gem-Assist is a Python-based personal assistant that leverages the power of Google's Gemini models(and other) to help you with various tasks. It's designed to be versatile and extensible, offering a range of tools to interact with your system and the internet. (These were written by AI)
 
-A short disclaimer this was originally made to be my personal assistant so it might not be as versatile as you might expect. Originally this was Gemini only now it supports alot because of litellm support, look into `config.py` for more information.
-
-<p align="center">
-  <img src="images/gem-assist-demo.gif" alt="Gem-Assist Demo" width="800"/>
-</p>
-
 ## Features
 
 - **Powered by LLM:** Utilizes LLM's for natural language understanding and generation.
