@@ -18,39 +18,193 @@ from rich.panel import Panel
 from rich.progress import BarColumn, Progress, TaskProgressColumn, TimeRemainingColumn
 from rich.text import Text
 from colorama import Fore, Style
+import random
 
 from .core import tool_message_print, tool_report_print
 from gem import seconds_to_hms, bytes_to_mb, format_size
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
-def get_website_text_content(url: str) -> str:
+# List of common user agents to rotate when needed
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+]
+
+def get_website_text_content(url: str) -> Dict[str, Any]:
     """
-    Fetch and return the text content of a webpage/article in nicely formatted markdown for easy readability.
-    It doesn't contain everything, just links and text contents
-    DONT USE THIS FOR REDDIT POST, use `get_reddit_post` for that
-
+    Fetch and return the text content of a webpage using multiple extraction methods.
+    No automatic retries as many failures are due to site restrictions rather than connectivity issues.
+    
     Args:
-      url: The URL of the webpage.
-
-    Returns: The text content of the website in markdown format, or an error message.
+        url: The URL of the webpage to extract content from
+        
+    Returns:
+        Dictionary containing extracted content, extraction method used, and metadata
     """
     tool_message_print("get_website_text_content", [("url", url)])
+    
+    # First try the service-based method
+    service_result = extract_via_service(url)
+    if not service_result.get("error"):
+        tool_report_print("Content extraction successful:", 
+                         f"Extracted {len(service_result.get('content', ''))} characters using service method")
+        return service_result
+        
+    # If service fails, try direct extraction
+    direct_result = extract_direct(url)
+    if not direct_result.get("error"):
+        tool_report_print("Content extraction successful:", 
+                         f"Extracted {len(direct_result.get('content', ''))} characters using direct method")
+        return direct_result
+    
+    # Both methods failed, provide helpful recommendation
+    errors = []
+    if service_result.get("error"):
+        errors.append(f"Service method: {service_result.get('error')}")
+    if direct_result.get("error"):
+        errors.append(f"Direct method: {direct_result.get('error')}")
+    
+    error_str = "; ".join(errors)
+    
+    # Check if this might be a JS-heavy site
+    js_indicators = [
+        "Cloudflare", "JavaScript", "ReactJS", "Vue", "Angular", 
+        "dynamic content", "captcha", "authentication"
+    ]
+    
+    recommendation = ""
+    if any(indicator.lower() in error_str.lower() for indicator in js_indicators):
+        recommendation = (
+            " This appears to be a JavaScript-heavy site or protected by anti-scraping measures. "
+            "Try using smart_content_extraction() or scrape_dynamic_content() instead."
+        )
+    
+    final_result = {
+        "error": f"Content extraction failed.{recommendation}",
+        "content": "",
+        "extraction_method": "failed",
+        "url": url,
+        "errors": errors
+    }
+    
+    tool_report_print("Content extraction failed:", final_result["error"], is_error=True)
+    return final_result
+
+def extract_via_service(url: str) -> Dict[str, Any]:
+    """Extract webpage content using the third-party service."""
     try:
         base = "https://md.dhr.wtf/?url="
-        response = requests.get(base+url, headers={'User-Agent': DEFAULT_USER_AGENT})
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        headers = {'User-Agent': random.choice(USER_AGENTS)}
+        
+        response = requests.get(base+url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
         soup = BeautifulSoup(response.content, 'lxml')
-        text_content = soup.get_text(separator='\n', strip=True) 
-        tool_report_print("Status:", "Webpage content fetched successfully")
-        return text_content
+        text_content = soup.get_text(separator='\n', strip=True)
+        
+        # Check if content seems empty or too short
+        if len(text_content) < 100:
+            return {
+                "error": "Content extracted is suspiciously short, possibly failed extraction",
+                "content": text_content,
+                "extraction_method": "service",
+                "url": url
+            }
+            
+        # Successful extraction
+        return {
+            "content": text_content,
+            "extraction_method": "service",
+            "url": url,
+            "length": len(text_content)
+        }
+        
     except requests.exceptions.RequestException as e:
-        tool_report_print("Error fetching webpage content:", str(e), is_error=True)
-        return f"Error fetching webpage content: {e}"
+        return {"error": f"Service extraction failed: {str(e)}"}
     except Exception as e:
-        tool_report_print("Error processing webpage content:", str(e), is_error=True)
-        return f"Error processing webpage content: {e}"
-    
+        return {"error": f"Service extraction error: {str(e)}"}
+
+def extract_direct(url: str) -> Dict[str, Any]:
+    """Extract webpage content directly using requests and BeautifulSoup."""
+    try:
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'DNT': '1',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # Process content
+        soup = BeautifulSoup(response.text, 'lxml')
+        
+        # Remove script and style elements that we don't want to extract text from
+        for element in soup(['script', 'style', 'head', 'header', 'footer', 'nav']):
+            element.decompose()
+        
+        # Find the main content - usually in article, main, or div with content-related class/id
+        main_content = None
+        for selector in ['article', 'main', '.content', '#content', '.post', '.article']:
+            content = soup.select_one(selector)
+            if content and len(content.get_text(strip=True)) > 200:
+                main_content = content
+                break
+        
+        # If no main content block found, use body
+        if not main_content:
+            main_content = soup.body
+        
+        if not main_content:
+            return {"error": "Failed to locate content in the page"}
+        
+        # Extract text with better formatting
+        paragraphs = []
+        for element in main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+            text = element.get_text(strip=True)
+            if text:
+                if element.name.startswith('h'):
+                    # Format headings with markdown-style hashes
+                    level = int(element.name[1])
+                    paragraphs.append(f"\n{'#' * level} {text}\n")
+                else:
+                    paragraphs.append(text)
+        
+        content = "\n\n".join(paragraphs)
+        
+        # Check if content seems empty or too short
+        if len(content) < 100:
+            return {
+                "error": "Content extracted is suspiciously short, possibly failed extraction",
+                "content": content,
+                "extraction_method": "direct",
+                "url": url
+            }
+            
+        # Get page title
+        title = soup.title.string if soup.title else "No title"
+        
+        # Successful extraction
+        return {
+            "content": content,
+            "title": title,
+            "extraction_method": "direct",
+            "url": url,
+            "length": len(content)
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Direct extraction failed: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Direct extraction error: {str(e)}"}
+
 def http_get_request(url: str, headers_json: str = "") -> str:
     """
     Send an HTTP GET request to a URL and return the response as a string. Can be used for interacting with REST API's
