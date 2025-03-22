@@ -8,10 +8,10 @@ import time
 from typing import Dict, List, Union, Optional
 
 # Handle optional dependencies
-REQUESTS_AVAILABLE = False
-BEAUTIFULSOUP_AVAILABLE = False
-PANDAS_AVAILABLE = False
-SELENIUM_AVAILABLE = False
+REQUESTS_AVAILABLE = True
+BEAUTIFULSOUP_AVAILABLE = True
+PANDAS_AVAILABLE = True
+SELENIUM_AVAILABLE = True
 
 try:
     import requests
