@@ -49,10 +49,23 @@ def show_reasoning():
     # This is just a placeholder - the actual implementation is in the Assistant class
     print("Use this command in the chat interface to see the assistant's reasoning plan.")
 
+@cmd(['reset'], "Resets the chat session but keeps the terminal display")
+def reset_context():
+    """
+    Reset the conversation context while keeping the terminal display.
+    
+    This command clears all message history, but doesn't clear the terminal
+    screen, so you can still see the previous conversation. You'll be asked
+    to confirm before the reset happens.
+    """
+    # This is just a placeholder - the actual implementation is in the Assistant class
+    print("Use this command in the chat interface to reset the conversation context.")
+
 COMMANDS = [
     exit_chat,
     show_help,
     list_commands,
     clear_screen,
-    show_reasoning
+    show_reasoning,
+    # reset_context  # Removed to avoid alias conflict with reset_session in Assistant class
 ]

@@ -501,12 +501,43 @@ class Assistant:
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
 
-    @cmd(["reset"], "Resets the chat session.")
-    def reset_session(self) -> None:
-        """Reset the current chat session."""
+    @cmd(["reset"], "Resets the chat session but keeps the terminal display.")
+    def reset_session(self, force: bool = False) -> None:
+        """
+        Reset the current chat session, clearing all conversation history.
+        
+        Args:
+            force: Set to True to skip the confirmation prompt (default: False)
+        """
+        if not force:
+            self.console.print("[bold yellow]⚠️ Warning:[/] This will reset the entire conversation history.")
+            self.console.print("[yellow]All previous messages will be cleared, but the terminal display will remain.[/]")
+            
+            try:
+                confirm = input("Are you sure you want to reset the conversation? (y/N): ").lower().strip()
+                if confirm not in ['y', 'yes']:
+                    self.console.print("[info]Reset cancelled.[/]")
+                    return
+            except KeyboardInterrupt:
+                self.console.print("\n[info]Reset cancelled.[/]")
+                return
+        
+        # Store the old length to verify reset happened
+        old_length = len(self.messages)
+        
+        # Reset the messages
         self.messages = []
         if self.system_instruction:
             self.messages.append({"role": "system", "content": self.system_instruction})
+        
+        # Clear reasoning history too
+        self.last_reasoning = None
+        
+        # Announce the reset with visual distinction
+        reset_message = "[bold green]✅ Conversation reset successfully![/]"
+        self.console.print("\n" + reset_message + "\n")
+        self.console.print(f"[dim]Cleared {old_length - (1 if self.system_instruction else 0)} messages.[/]")
+        self.console.print("[dim]You can start a new conversation now.[/]\n")
 
     @cmd(["reasoning"], "Displays the last reasoning plan from the assistant.")
     def show_last_reasoning(self) -> None:
@@ -694,7 +725,10 @@ def _run_interaction_loop(session: PromptSession, assistant: Assistant) -> None:
 
             # Handle commands
             if msg.startswith("/"):
-                CommandExecuter.execute(msg)
+                try:
+                    CommandExecuter.execute(msg)
+                except Exception as e:
+                    console.print(f"[error]Command error: {e}[/]")
                 continue
             
             # Send the message to the assistant

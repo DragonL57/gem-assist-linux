@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Only show the condensed overview of the tool output"
+git commit -m "Add /reset command and improved prompt"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)
