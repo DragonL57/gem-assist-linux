@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Add and improve file read tools"
+git commit -m "Only show the condensed overview of the tool output"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

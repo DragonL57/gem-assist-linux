@@ -387,8 +387,8 @@ class Assistant:
             result_count = self._count_search_results(result)
             self.console.print(f"[success]✓ Completed in {execution_time:.4f}s: received {result_count} results[/]")
         else:
-            # For non-search tools, show brief result
-            brief_response = self._get_brief_response(result)
+            # For non-search tools, show condensed preview (2-3 lines max)
+            brief_response = self._get_condensed_preview(result)
             self.console.print(f"[success]✓ Completed in {execution_time:.4f}s: {brief_response}[/]")
         
         self.console.print()  # Add space for readability
@@ -407,11 +407,37 @@ class Assistant:
                     result_count += len(results)
         return result_count
 
-    def _get_brief_response(self, result: Any) -> str:
-        """Get a brief representation of a result for display."""
-        if isinstance(result, str) and len(result) > 100:
-            return result[:97] + "..."
-        return str(result)
+    def _get_condensed_preview(self, result: Any) -> str:
+        """Get a condensed preview of a result (2-3 lines max) for display."""
+        # Convert to string first
+        if isinstance(result, (dict, list)):
+            try:
+                # For structured data, show just a short summary
+                if isinstance(result, dict):
+                    # For dictionaries, show key count and first few keys
+                    keys = list(result.keys())[:3]
+                    return f"Dict with {len(result)} keys: {', '.join(str(k) for k in keys)}{' ...' if len(result) > 3 else ''}"
+                else:  # List
+                    # For lists, show length and first few items
+                    return f"List with {len(result)} items: {str(result[:2])[:40]}{' ...' if len(result) > 2 else ''}"
+            except:
+                # Fall back to string representation if JSON conversion fails
+                result_str = str(result)
+        elif isinstance(result, str):
+            result_str = result
+        else:
+            result_str = str(result)
+        
+        # Limit by lines (2-3 lines)
+        lines = result_str.splitlines()
+        if len(lines) > 3:
+            return "\n".join(lines[:3]) + " ..."
+        
+        # Limit overall length if it's a single line
+        if len(lines) <= 1 and len(result_str) > 100:
+            return result_str[:97] + "..."
+            
+        return result_str
 
     # ==================== Message History Functions ====================
 
