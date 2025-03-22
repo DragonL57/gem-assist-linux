@@ -36,24 +36,7 @@ try:
 except ImportError:
     GOOGLE_SEARCH_AVAILABLE = False
 
-def duckduckgo_search_tool(query: str) -> list:
-    """
-    Searches DuckDuckGo for the given query and returns a list of results.
-
-    Args:
-        query: The search query.
-
-    Returns:
-        list: A list of search results.
-    """
-    tool_message_print("duckduckgo_search_tool", [("query", query)])
-    try:
-        ddgs = duckduckgo_search.DDGS(timeout=conf.DUCKDUCKGO_TIMEOUT)
-        results = ddgs.text(query, max_results=conf.MAX_DUCKDUCKGO_SEARCH_RESULTS)
-        return results
-    except Exception as e:
-        tool_report_print("Error during DuckDuckGo search:", str(e), is_error=True)
-        return f"Error during DuckDuckGo search: {e}"
+# Basic DuckDuckGo search tool removed - use advanced_duckduckgo_search instead
 
 def advanced_duckduckgo_search(query: str, time_period: str = None, 
                               region: str = "wt-wt", safesearch: str = "moderate",
@@ -87,7 +70,7 @@ def advanced_duckduckgo_search(query: str, time_period: str = None,
             query = f"site:{domain} {query}"
         
         # Initialize DuckDuckGo search
-        ddgs = duckduckgo_search.DDGS()
+        ddgs = duckduckgo_search.DDGS(timeout=conf.DUCKDUCKGO_TIMEOUT)
         
         # Set time period parameter
         time_map = {

@@ -215,7 +215,7 @@ def get_system_prompt():
     - When researching:
       * Start with broad search queries to understand the topic landscape
       * Follow up with specific searches to dive deeper into particular aspects
-      * Use different search tools (duckduckgo_search_tool, google_search, meta_search) for wider coverage
+      * Use different search tools (advanced_duckduckgo_search, google_search, meta_search) for wider coverage
       * Consult Wikipedia when appropriate for structured knowledge
     - For complex topics, break down your research into clearly labeled sections
     - Cite your sources within your response so the user understands where information came from

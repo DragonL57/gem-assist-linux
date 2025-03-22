@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Update prompt"
+git commit -m "Remove the basic duckduckgo_search_tool and use the advanced one"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

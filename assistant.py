@@ -54,8 +54,8 @@ console = Console(theme=custom_theme)
 
 # Define search-related tools for concise output
 SEARCH_TOOLS = [
-    "duckduckgo_search_tool", "advanced_duckduckgo_search", 
-    "google_search", "meta_search", "reddit_search", 
+    "advanced_duckduckgo_search", "google_search", 
+    "meta_search", "reddit_search", 
     "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"
 ]
 
