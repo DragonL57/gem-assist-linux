@@ -451,3 +451,115 @@ code {
     font-size: 0.7em;
     margin-left: 8px;
 }
+
+/* Reasoning and Execution containers during processing */
+.reasoning-container, .execution-container {
+    width: 98%;
+    margin: 15px 0;
+    border-radius: 10px;
+    overflow: hidden;
+    background-color: #ffffff;
+    border: 2px solid #007bff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    align-self: center;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.reasoning-header, .execution-header {
+    background-color: #e3f2fd;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    border-bottom: 2px solid #007bff;
+}
+
+.reasoning-icon, .execution-icon {
+    margin-right: 8px;
+    font-size: 1.2em;
+}
+
+.reasoning-title, .execution-title {
+    font-weight: bold;
+    color: #0056b3;
+    font-size: 1.1em;
+}
+
+.reasoning-content, .execution-content {
+    padding: 15px;
+    max-height: 400px;
+    min-height: 100px;
+    overflow-y: auto;
+    color: #333;
+    font-size: 0.95em;
+    background-color: #f8f9fa;
+}
+
+/* Collapsible sections in finished messages */
+.reasoning-section, .execution-section {
+    margin: 8px 0;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f6f8fa;
+    opacity: 0.85; /* Slightly more transparent to focus on the main response */
+    transition: opacity 0.2s ease;
+}
+
+.reasoning-section:hover, .execution-section:hover {
+    opacity: 1; /* Full opacity on hover */
+}
+
+.collapsible {
+    cursor: pointer;
+    padding: 8px 12px;
+    background-color: #f1f8ff;
+    border-bottom: 1px solid #dbedff;
+    display: flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.collapsible:hover {
+    background-color: #e1f0ff;
+}
+
+.collapsible-content {
+    padding: 10px 15px;
+    background-color: white;
+    font-size: 0.9em;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.toggle-icon {
+    margin-left: auto;
+    font-size: 0.8em;
+    transition: transform 0.2s;
+}
+
+.assistant-response-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+/* Highlight active reasoning/execution during processing */
+#reasoning-container, #execution-container {
+    border: 2px solid #4caf50; /* More noticeable border */
+    position: relative;
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0% { border-color: #4caf50; }
+    50% { border-color: #2196F3; }
+    100% { border-color: #4caf50; }
+}
+
+/* Message content styling */
+.message-content {
+    margin-top: 10px;
+    line-height: 1.5;
+    padding: 5px 0;
+}

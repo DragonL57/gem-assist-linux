@@ -90,6 +90,12 @@ socket.on('execution_start', () => {
     
     // Always create the execution container when execution phase starts
     createExecutionContainer();
+    
+    // Make sure reasoning container is expanded during generation
+    const reasoningContainer = document.getElementById('reasoning-container');
+    if (reasoningContainer) {
+        reasoningContainer.style.display = 'block';
+    }
 });
 
 socket.on('tool_call', (data) => {
@@ -281,8 +287,8 @@ socket.on('response', (data) => {
     // Remove typing indicator
     removeTypingIndicator();
     
-    // Remove reasoning container
-    removeReasoningContainer();
+    // Don't remove the reasoning and execution containers yet,
+    // they'll be incorporated into the message with collapsed sections
     
     if (data.error) {
         addMessageToChat('error', data.error);
@@ -320,9 +326,9 @@ function addMessageToChat(sender, message) {
                 <div class="reasoning-header collapsible" onclick="toggleCollapsible(this)">
                     <span class="reasoning-icon">🧠</span>
                     <span class="reasoning-title">Assistant's Reasoning</span>
-                    <span class="toggle-icon">▼</span>
+                    <span class="toggle-icon">▶</span>
                 </div>
-                <div class="reasoning-content collapsible-content">
+                <div class="reasoning-content collapsible-content" style="display: none;">
                     ${marked.parse(reasoningData)}
                 </div>
             `;
@@ -338,9 +344,9 @@ function addMessageToChat(sender, message) {
                 <div class="execution-header collapsible" onclick="toggleCollapsible(this)">
                     <span class="execution-icon">⚙️</span>
                     <span class="execution-title">Tools Used</span>
-                    <span class="toggle-icon">▼</span>
+                    <span class="toggle-icon">▶</span>
                 </div>
-                <div class="execution-content collapsible-content">
+                <div class="execution-content collapsible-content" style="display: none;">
                     ${executionData.querySelector('.execution-content').innerHTML}
                 </div>
             `;
@@ -366,6 +372,9 @@ function addMessageToChat(sender, message) {
         
         // Clear stored reasoning now that it's been used
         clearStoredReasoning();
+        
+        // Remove any remaining reasoning container from the active process
+        removeReasoningContainer();
     }
     
     chatArea.appendChild(messageElement);
@@ -430,7 +439,9 @@ function removeReasoningContainer() {
     
     const executionContainer = document.getElementById('execution-container');
     if (executionContainer) {
-        executionContainer.remove();
+        // Don't remove the execution container during processing,
+        // it will be incorporated into the final message
+        // This will be handled in addMessageToChat
     }
 }
 

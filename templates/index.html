@@ -36,9 +36,18 @@
         // Global function to toggle collapsible sections
         function toggleCollapsible(header) {
             const content = header.nextElementSibling;
-            content.style.display = content.style.display === 'none' ? 'block' : 'none';
+            const isHidden = content.style.display === 'none';
+            content.style.display = isHidden ? 'block' : 'none';
+            
             const icon = header.querySelector('.toggle-icon');
-            icon.textContent = content.style.display === 'none' ? '▶' : '▼';
+            icon.textContent = isHidden ? '▼' : '▶';
+            
+            // Optional: Add smooth transition
+            if (isHidden) {
+                content.style.maxHeight = '300px'; // Match the CSS value
+            } else {
+                content.style.maxHeight = '0';
+            }
         }
     </script>
 </body>
