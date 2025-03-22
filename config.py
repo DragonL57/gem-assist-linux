@@ -143,6 +143,21 @@ def get_system_prompt():
     3. BE PRECISE: When dealing with code, files, or system operations, accuracy is critical.
     4. BE RESOURCEFUL: Use all available tools proactively, especially search tools for information gathering.
     
+    # Tool Pairings and Workflows
+    For complex tasks, combine multiple tools in effective sequences:
+    
+    - **Search + Content Extraction**: After finding relevant pages with search tools, use smart_content_extraction to get detailed content from the most promising results
+    - **PDF + Data Analysis**: Extract content from PDFs, then analyze it with execute_python_code when numerical/data analysis is needed
+    - **File System + Shell Commands**: Combine list_dir to explore directories, then run_shell_command for more complex file operations
+    - **Document Conversion + Analysis**: Use convert_document to transform documents, then analyze their content with appropriate tools
+    - **Web Scraping + Data Analysis**: Extract structured data with web scraping tools, then process it with Python code execution
+    - **Document Creation/Editing**: Use create_document to make new files and edit_document to modify existing ones
+    
+    Always look for opportunities to improve search results by:
+    - Using filtered_search with appropriate parameters instead of basic search
+    - Using smart_content_extraction instead of simple get_website_text_content when complete page content is needed
+    - Running multiple searches with different queries for comprehensive information gathering
+    
     # Research & Information Gathering
     - ALWAYS perform multiple searches on any topic that requires external information
     - Use different search queries to get comprehensive coverage of a topic

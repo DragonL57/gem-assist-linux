@@ -9,6 +9,7 @@ import json
 import requests
 import webbrowser
 import time
+from typing import Dict, Any, Optional, Union, List, Tuple
 from bs4 import BeautifulSoup
 from pypdl import Pypdl
 from rich.console import Console
@@ -319,3 +320,102 @@ def download_file_from_url(url: str, download_path: str | None) -> str:
     except Exception as e:
         tool_report_print("Error downloading file:", str(e), is_error=True)
         return f"Error downloading file: {e}"
+
+def smart_content_extraction(url: str, 
+                            extract_images: bool = False, 
+                            extract_links: bool = True,
+                            try_dynamic: bool = True,
+                            timeout: int = 20) -> Dict[str, Any]:
+    """
+    Intelligently extract content from a webpage, automatically choosing between static and dynamic extraction.
+    Detects if a page requires JavaScript and switches to dynamic extraction if needed.
+    
+    Args:
+        url: URL to extract content from
+        extract_images: Whether to extract image information
+        extract_links: Whether to extract links from the page
+        try_dynamic: Whether to try dynamic extraction if static extraction appears insufficient
+        timeout: Maximum time in seconds for extraction
+        
+    Returns:
+        Dict containing extracted content and metadata
+    """
+    tool_message_print("smart_content_extraction", [
+        ("url", url),
+        ("extract_images", str(extract_images)),
+        ("extract_links", str(extract_links)),
+        ("try_dynamic", str(try_dynamic))
+    ])
+    
+    # First, try regular content extraction
+    try:
+        regular_content = get_website_text_content(url)
+        
+        # If content seems empty or very short, it might need dynamic extraction
+        content_text = regular_content.get('content', '')
+        js_indicators = ['javascript', 'react', 'angular', 'vue', 'loading']
+        
+        needs_dynamic = (
+            try_dynamic and (
+                len(content_text) < 500 or  # Content too short
+                any(f"please enable {js}" in content_text.lower() for js in js_indicators) or
+                "loading" in content_text.lower() or
+                regular_content.get('error')  # Error in static extraction
+            )
+        )
+        
+        if needs_dynamic:
+            try:
+                # Import at the point of use to avoid dependency issues
+                from utils.web_scraper import scrape_dynamic_content
+                
+                tool_report_print("Static extraction insufficient:", 
+                                 "Switching to dynamic content extraction")
+                
+                dynamic_result = scrape_dynamic_content(
+                    url=url,
+                    wait_time=10,
+                    selector_to_wait_for="body"
+                )
+                
+                # If dynamic extraction worked, use that instead
+                if dynamic_result and not dynamic_result.get('error'):
+                    dynamic_result['extraction_method'] = 'dynamic'
+                    return dynamic_result
+            except ImportError:
+                tool_report_print("Dynamic extraction unavailable:", 
+                                 "Selenium not installed, continuing with static content")
+            except Exception as e:
+                tool_report_print("Dynamic extraction failed:", str(e), is_error=True)
+        
+        # Add additional extraction if requested
+        if extract_links or extract_images:
+            from utils.web_scraper import extract_structured_data
+            
+            try:
+                data_types = []
+                if extract_links:
+                    data_types.append('links')
+                if extract_images:
+                    data_types.append('images')
+                
+                structured_data = extract_structured_data(
+                    url=url,
+                    data_type=','.join(data_types)
+                )
+                
+                if extract_links and 'links' in structured_data:
+                    regular_content['links'] = structured_data.get('links', [])
+                    
+                if extract_images and 'images' in structured_data:
+                    regular_content['images'] = structured_data.get('images', [])
+                    
+            except Exception as e:
+                tool_report_print("Enhanced extraction failed:", str(e), is_error=True)
+        
+        regular_content['extraction_method'] = 'static'
+        return regular_content
+        
+    except Exception as e:
+        tool_report_print("Smart content extraction failed:", str(e), is_error=True)
+        return {"error": f"Content extraction failed: {str(e)}"}

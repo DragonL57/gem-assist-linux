@@ -316,3 +316,236 @@ def convert_excel_to_format(filepath: str, output_format: Literal["csv", "json",
             "error": str(e),
             "output_file": None
         }
+
+def create_document(
+    content: str, 
+    file_path: str, 
+    document_type: str = "text", 
+    template: str = None,
+    overwrite: bool = False
+) -> Dict[str, Any]:
+    """
+    Create a document with the specified content.
+    
+    Args:
+        content: The content to write to the document
+        file_path: Where to save the document
+        document_type: Type of document (text, markdown, html, docx)
+        template: Optional template name or path to use
+        overwrite: Whether to overwrite an existing file
+        
+    Returns:
+        Status and information about the created document
+    """
+    tool_message_print("create_document", [
+        ("file_path", file_path),
+        ("document_type", document_type),
+        ("template", template or "none"),
+        ("content_length", str(len(content))),
+        ("overwrite", str(overwrite))
+    ])
+    
+    # Normalize document type
+    doc_type = document_type.lower().strip()
+    
+    try:
+        # Check if file exists and handle overwrite logic
+        if os.path.exists(file_path) and not overwrite:
+            return {
+                "success": False,
+                "error": f"File already exists: {file_path}. Use overwrite=True to replace.",
+                "file_path": file_path
+            }
+        
+        # Create directory if it doesn't exist
+        directory = os.path.dirname(file_path)
+        if directory and not os.path.exists(directory):
+            os.makedirs(directory, exist_ok=True)
+        
+        # Apply template if specified
+        final_content = content
+        if template:
+            if template == "basic_html":
+                final_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Document</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+{content}
+</body>
+</html>"""
+            elif template == "markdown_article":
+                final_content = f"""# Untitled Article
+
+{content}
+
+---
+Created on {time.strftime('%Y-%m-%d')}
+"""
+        
+        # Handle different document types
+        if doc_type == "docx":
+            if not DOCX_AVAILABLE:
+                return {
+                    "success": False,
+                    "error": "python-docx library is not installed. Please install it with: uv pip install python-docx"
+                }
+            
+            # Create a Word document
+            from docx import Document
+            doc = Document()
+            
+            # Split content by newlines and add paragraphs
+            for para in content.split('\n'):
+                if para.strip():
+                    doc.add_paragraph(para)
+            
+            # Save the document
+            doc.save(file_path)
+            
+        elif doc_type == "html":
+            # For HTML, ensure we have proper structure if no template is used
+            if not template:
+                final_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Document</title>
+</head>
+<body>
+{content}
+</body>
+</html>"""
+            
+            # Save HTML file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(final_content)
+                
+        else:  # Default to text file (including markdown)
+            # Save as plain text file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(final_content)
+        
+        # Return success information
+        file_size = os.path.getsize(file_path)
+        tool_report_print("Document created:", f"Saved {file_size} bytes to {file_path}")
+        
+        return {
+            "success": True,
+            "file_path": file_path,
+            "document_type": doc_type,
+            "size_bytes": file_size,
+            "content_preview": final_content[:100] + "..." if len(final_content) > 100 else final_content
+        }
+        
+    except Exception as e:
+        tool_report_print("Error creating document:", str(e), is_error=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "file_path": file_path
+        }
+
+
+def edit_document(
+    file_path: str,
+    edits: Union[str, Dict[str, str]],
+    edit_type: str = "replace"
+) -> Dict[str, Any]:
+    """
+    Edit an existing document.
+    
+    Args:
+        file_path: Path to the document to edit
+        edits: Either full content (for replace) or dict of {pattern: replacement} for search/replace
+        edit_type: Type of edit to perform - "replace" (full content), "append" (add to end),
+                  or "search_replace" (pattern matching)
+        
+    Returns:
+        Status and information about the edited document
+    """
+    tool_message_print("edit_document", [
+        ("file_path", file_path),
+        ("edit_type", edit_type),
+        ("edits_length", str(len(str(edits))))
+    ])
+    
+    try:
+        # Check if file exists
+        if not os.path.exists(file_path):
+            return {
+                "success": False,
+                "error": f"File does not exist: {file_path}",
+                "file_path": file_path
+            }
+        
+        # Read the original content
+        with open(file_path, 'r', encoding='utf-8') as f:
+            original_content = f.read()
+        
+        # Apply edits based on edit_type
+        if edit_type == "replace":
+            if not isinstance(edits, str):
+                return {
+                    "success": False,
+                    "error": "For replace edit_type, edits must be a string",
+                    "file_path": file_path
+                }
+            new_content = edits
+            
+        elif edit_type == "append":
+            if not isinstance(edits, str):
+                return {
+                    "success": False,
+                    "error": "For append edit_type, edits must be a string",
+                    "file_path": file_path
+                }
+            new_content = original_content + edits
+            
+        elif edit_type == "search_replace":
+            if not isinstance(edits, dict):
+                return {
+                    "success": False, 
+                    "error": "For search_replace edit_type, edits must be a dictionary",
+                    "file_path": file_path
+                }
+                
+            import re
+            new_content = original_content
+            for pattern, replacement in edits.items():
+                new_content = re.sub(pattern, replacement, new_content)
+                
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown edit_type: {edit_type}. Must be 'replace', 'append', or 'search_replace'",
+                "file_path": file_path
+            }
+        
+        # Write the modified content back to the file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+        
+        # Return success information
+        changes_made = len(new_content) - len(original_content)
+        tool_report_print("Document edited:", 
+                        f"Modified {file_path}, character change: {changes_made:+d}")
+        
+        return {
+            "success": True,
+            "file_path": file_path,
+            "original_size": len(original_content),
+            "new_size": len(new_content),
+            "changes": changes_made,
+            "content_preview": new_content[:100] + "..." if len(new_content) > 100 else new_content
+        }
+        
+    except Exception as e:
+        tool_report_print("Error editing document:", str(e), is_error=True)
+        return {
+            "success": False,
+            "error": str(e),
+            "file_path": file_path
+        }
