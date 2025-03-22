@@ -125,22 +125,23 @@ code {
 /* Reasoning and Execution containers */
 .reasoning-container, .execution-container {
     width: 98%; /* Changed from 95% */
-    margin-bottom: 15px;
+    margin: 15px 0; /* Increased vertical margin */
     border-radius: 10px;
     overflow: hidden;
     background-color: #ffffff;
-    border: 1px solid #e0e0e0;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    border: 2px solid #007bff; /* Bolder border with blue color */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* More prominent shadow */
     align-self: center;
     flex-shrink: 0; /* Prevent shrinking */
+    position: relative; /* For positioning */
 }
 
 .reasoning-header, .execution-header {
-    background-color: #f0f4f8;
-    padding: 8px 15px;
+    background-color: #e3f2fd; /* Lighter blue background */
+    padding: 10px 15px;
     display: flex;
     align-items: center;
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 2px solid #007bff; /* Match border color */
 }
 
 .reasoning-icon, .execution-icon {
@@ -150,7 +151,8 @@ code {
 
 .reasoning-title, .execution-title {
     font-weight: bold;
-    color: #2c3e50;
+    color: #0056b3; /* Darker blue for better visibility */
+    font-size: 1.1em;
 }
 
 .reasoning-content, .execution-content {
@@ -158,8 +160,9 @@ code {
     max-height: 400px; /* Increased from 300px */
     min-height: 100px; /* Add minimum height */
     overflow-y: auto;
-    color: #555;
+    color: #333; /* Darker text for better contrast */
     font-size: 0.95em;
+    background-color: #f8f9fa; /* Light background to distinguish from chat */
 }
 
 .reasoning-content p {
@@ -294,4 +297,81 @@ code {
 #user-input:disabled, #send-button:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+/* Tools Panel */
+.tools-button {
+    background-color: #0056b3;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.8em;
+    cursor: pointer;
+    display: inline-block;
+    margin-top: 5px;
+    transition: background-color 0.3s;
+}
+
+.tools-button:hover {
+    background-color: #003d82;
+}
+
+.tools-panel {
+    background-color: #f0f4f8;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 15px;
+    border-bottom: 1px solid #d0d7de;
+    transition: max-height 0.3s ease-out;
+}
+
+.tools-panel h3 {
+    margin-top: 0;
+    color: #0366d6;
+}
+
+.tools-panel.hidden {
+    max-height: 0;
+    padding: 0;
+    overflow: hidden;
+    border: none;
+}
+
+.tool-category {
+    margin-bottom: 12px;
+}
+
+.category-name {
+    font-weight: bold;
+    color: #24292e;
+    margin-bottom: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.category-name:before {
+    content: '▶';
+    margin-right: 5px;
+    font-size: 0.7em;
+    transition: transform 0.2s;
+}
+
+.category-name.expanded:before {
+    transform: rotate(90deg);
+}
+
+.category-tools {
+    margin-left: 15px;
+    display: none;
+}
+
+.category-tools.visible {
+    display: block;
+}
+
+.tool-item {
+    font-size: 0.9em;
+    padding: 3px 0;
+    color: #586069;
 }

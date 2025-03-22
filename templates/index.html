@@ -14,6 +14,13 @@
         <div id="header">
             <h1>Gem-Assist</h1>
             <p>Powered by <span id="model-info">AI Assistant</span></p>
+            <div class="tools-button" onclick="toggleToolsPanel()">
+                <span id="tools-button-text">Show Available Tools</span>
+            </div>
+        </div>
+        <div id="tools-panel" class="tools-panel hidden">
+            <h3>Available Tools</h3>
+            <div id="tools-categories"></div>
         </div>
         <div id="chat-area">
             <!-- Messages will be dynamically added here -->

@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(() => {
             // If request fails, keep the default text
         });
+
+    // Fetch tools info when page loads
+    fetchAvailableTools();
 });
 
 function sendMessage() {
@@ -39,9 +42,9 @@ function sendMessage() {
     }
 }
 
-// Handle the two-phase reasoning process
+// Add debugging to see when events are received
 socket.on('reasoning_start', () => {
-    // Remove any existing reasoning containers
+    console.log("Reasoning phase started");
     removeReasoningContainer();
     
     // Create a reasoning container
@@ -63,9 +66,10 @@ socket.on('reasoning_start', () => {
 });
 
 socket.on('reasoning', (data) => {
+    console.log("Reasoning data received", data);
     const reasoningContent = document.getElementById('reasoning-content');
     if (reasoningContent) {
-        reasoningContent.innerHTML = marked.parse(data.reasoning);
+        reasoningContent.innerHTML = marked.parse(data.reasoning || "Thinking...");
         
         // Apply syntax highlighting
         reasoningContent.querySelectorAll('pre code').forEach((block) => {
@@ -77,14 +81,17 @@ socket.on('reasoning', (data) => {
     }
 });
 
-// Only show execution container when there are tools to display
 socket.on('execution_start', () => {
+    console.log("Execution phase started");
     removeTypingIndicator();
-    // Don't create the execution container yet - we'll create it only when there's a tool call
+    
+    // Always create the execution container when execution phase starts
+    createExecutionContainer();
 });
 
 socket.on('tool_call', (data) => {
-    // Create execution container if it doesn't exist yet
+    console.log("Tool call received", data);
+    // Make sure execution container exists
     if (!document.getElementById('execution-container')) {
         createExecutionContainer();
     }
@@ -119,8 +126,15 @@ socket.on('tool_call', (data) => {
     }
 });
 
-// Add this function to create the execution container when needed
+// Ensure the execution container is created on execution_start
 function createExecutionContainer() {
+    console.log("Creating execution container");
+    // Remove existing execution container if any
+    const existingContainer = document.getElementById('execution-container');
+    if (existingContainer) {
+        existingContainer.remove();
+    }
+    
     const chatArea = document.getElementById('chat-area');
     const executionContainer = document.createElement('div');
     executionContainer.id = 'execution-container';
@@ -351,4 +365,68 @@ function enableInput() {
     document.getElementById('user-input').disabled = false;
     document.getElementById('send-button').disabled = false;
     document.getElementById('user-input').focus();
+}
+
+// Fetch and display available tools
+function fetchAvailableTools() {
+    fetch('/tools-info')
+        .then(response => response.json())
+        .then(data => {
+            const categoriesContainer = document.getElementById('tools-categories');
+            if (!categoriesContainer) return;
+            
+            categoriesContainer.innerHTML = '';
+            
+            Object.keys(data.categories).forEach(category => {
+                const tools = data.categories[category];
+                
+                const categoryDiv = document.createElement('div');
+                categoryDiv.className = 'tool-category';
+                
+                const categoryName = document.createElement('div');
+                categoryName.className = 'category-name';
+                categoryName.textContent = category.replace(/_/g, ' ');
+                categoryName.onclick = () => toggleCategoryTools(categoryName);
+                
+                const toolsList = document.createElement('div');
+                toolsList.className = 'category-tools';
+                
+                tools.forEach(tool => {
+                    const toolItem = document.createElement('div');
+                    toolItem.className = 'tool-item';
+                    toolItem.textContent = tool;
+                    toolsList.appendChild(toolItem);
+                });
+                
+                categoryDiv.appendChild(categoryName);
+                categoryDiv.appendChild(toolsList);
+                categoriesContainer.appendChild(categoryDiv);
+            });
+            
+            document.getElementById('tools-button-text').textContent = 
+                `Available Tools (${data.total_tools})`;
+        })
+        .catch(error => {
+            console.error('Error fetching tools info:', error);
+        });
+}
+
+function toggleToolsPanel() {
+    const panel = document.getElementById('tools-panel');
+    panel.classList.toggle('hidden');
+    
+    const buttonText = document.getElementById('tools-button-text');
+    if (panel.classList.contains('hidden')) {
+        buttonText.textContent = buttonText.textContent.replace('Hide', 'Show');
+    } else {
+        buttonText.textContent = buttonText.textContent.replace('Show', 'Hide');
+        // Only fetch tools if the panel is becoming visible
+        fetchAvailableTools();
+    }
+}
+
+function toggleCategoryTools(categoryElement) {
+    const toolsList = categoryElement.nextElementSibling;
+    toolsList.classList.toggle('visible');
+    categoryElement.classList.toggle('expanded');
 }
