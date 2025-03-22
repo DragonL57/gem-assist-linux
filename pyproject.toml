@@ -45,6 +45,9 @@ documents = [
 google-search = [
     "google-api-python-client>=2.100.0",
 ]
+youtube = [
+    "youtube-transcript-api>=0.6.1",
+]
 all = [
     "pandas>=2.0.0",
     "numpy>=1.24.0",
@@ -55,6 +58,7 @@ all = [
     "PyPDF2>=3.0.0",
     "python-docx>=1.0.0",
     "google-api-python-client>=2.100.0",
+    "youtube-transcript-api>=0.6.1",
 ]
 
 [project.scripts]

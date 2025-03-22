@@ -34,6 +34,14 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 ]
 
+# Check if youtube_transcript_api is available
+YOUTUBE_TRANSCRIPT_API_AVAILABLE = False
+try:
+    from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
+    YOUTUBE_TRANSCRIPT_API_AVAILABLE = True
+except ImportError:
+    pass
+
 def get_website_text_content(url: str) -> Dict[str, Any]:
     """
     Fetch and return the text content of a webpage using multiple extraction methods.
@@ -573,3 +581,143 @@ def smart_content_extraction(url: str,
     except Exception as e:
         tool_report_print("Smart content extraction failed:", str(e), is_error=True)
         return {"error": f"Content extraction failed: {str(e)}"}
+
+def get_youtube_transcript(video_url_or_id: str, 
+                          languages: str = "en", 
+                          format_timestamps: bool = True,
+                          combine_segments: bool = False) -> Dict[str, Any]:
+    """
+    Extract transcript (captions/subtitles) from a YouTube video.
+    
+    Args:
+        video_url_or_id: YouTube video URL or ID
+        languages: Comma-separated language codes in order of preference (e.g., "en,fr,es")
+        format_timestamps: Whether to format timestamps as HH:MM:SS
+        combine_segments: Whether to combine all segments into a single text
+        
+    Returns:
+        Dictionary containing video info and transcript with timestamps
+    """
+    tool_message_print("get_youtube_transcript", [
+        ("video_url_or_id", video_url_or_id),
+        ("languages", languages),
+        ("format_timestamps", str(format_timestamps)),
+        ("combine_segments", str(combine_segments))
+    ])
+    
+    if not YOUTUBE_TRANSCRIPT_API_AVAILABLE:
+        error_message = "youtube_transcript_api is not installed. Install with: uv pip install youtube-transcript-api"
+        tool_report_print("Error:", error_message, is_error=True)
+        return {"error": error_message}
+    
+    try:
+        # Extract video ID from URL if needed
+        video_id = extract_youtube_video_id(video_url_or_id)
+        if not video_id:
+            tool_report_print("Error:", "Invalid YouTube URL or video ID", is_error=True)
+            return {"error": "Invalid YouTube URL or video ID"}
+        
+        # Parse language preferences
+        language_list = [lang.strip() for lang in languages.split(",")]
+        
+        # Get transcript directly - simpler approach
+        try:
+            transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=language_list)
+            used_language = language_list[0] if language_list else "en"  # Default to first requested language
+        except NoTranscriptFound:
+            # Try getting available transcripts and translating
+            try:
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                # Get any transcript and translate to first preferred language
+                transcript = next(transcript_list)
+                if language_list:
+                    transcript = transcript.translate(language_list[0])
+                    used_language = f"{transcript.language_code} (translated to {language_list[0]})"
+                else:
+                    used_language = transcript.language_code
+                transcript_data = transcript.fetch()
+            except Exception as e:
+                tool_report_print("Error:", f"No transcript found: {str(e)}", is_error=True)
+                return {"error": f"No transcript found: {str(e)}"}
+        
+        # Format timestamps if requested
+        if format_timestamps:
+            for entry in transcript_data:
+                seconds = int(entry['start'])
+                minutes, seconds = divmod(seconds, 60)
+                hours, minutes = divmod(minutes, 60)
+                entry['formatted_timestamp'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        
+        # Combine segments if requested
+        combined_text = None
+        if combine_segments:
+            combined_text = " ".join(entry['text'] for entry in transcript_data)
+        
+        # Get video title and other metadata
+        video_title = "YouTube Video"
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            
+            # Try to get video title from page
+            headers = {'User-Agent': DEFAULT_USER_AGENT}
+            response = requests.get(video_url, headers=headers, timeout=5)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                title_tag = soup.find('title')
+                if title_tag:
+                    video_title = title_tag.text.replace(' - YouTube', '')
+        except Exception as e:
+            # If we can't get the title, just continue with default
+            pass
+        
+        result = {
+            "video_id": video_id,
+            "video_url": video_url,
+            "video_title": video_title,
+            "language": used_language,
+            "transcript_segments": transcript_data,
+            "segment_count": len(transcript_data)
+        }
+        
+        if combined_text:
+            result["combined_text"] = combined_text
+        
+        tool_report_print("Transcript retrieved:", 
+                         f"Found {len(transcript_data)} segments in language: {used_language}")
+        return result
+        
+    except VideoUnavailable:
+        tool_report_print("Error:", "The video is unavailable (possibly private or deleted)", is_error=True)
+        return {"error": "The video is unavailable (possibly private or deleted)"}
+    except TranscriptsDisabled:
+        tool_report_print("Error:", "Transcripts are disabled for this video", is_error=True)
+        return {"error": "Transcripts are disabled for this video"}
+    except Exception as e:
+        tool_report_print("Error retrieving transcript:", str(e), is_error=True)
+        return {"error": f"Failed to retrieve transcript: {str(e)}"}
+
+def extract_youtube_video_id(url_or_id: str) -> Optional[str]:
+    """Extract YouTube video ID from a URL or return the ID if already in correct format."""
+    if not url_or_id:
+        return None
+    
+    # Check if it's already an ID (simple 11 character string)
+    if re.match(r'^[A-Za-z0-9_-]{11}$', url_or_id):
+        return url_or_id
+    
+    # Try to extract ID from various YouTube URL formats
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/\?v=)([A-Za-z0-9_-]{11})',
+        r'(?:youtube\.com\/watch\?.*v=)([A-Za-z0-9_-]{11})',
+        r'(?:youtube\.com\/shorts\/)([A-Za-z0-9_-]{11})'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, url_or_id)
+        if match:
+            return match.group(1)
+    
+    return None

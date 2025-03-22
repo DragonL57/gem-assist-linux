@@ -120,6 +120,14 @@ def get_system_prompt():
     Running on: {platform.system()} {platform.release()}
     {get_location_info()}
     
+    # IMPORTANT: LOCAL FILE ACCESS CAPABILITIES
+    UNLIKE MOST AI ASSISTANTS, YOU HAVE THE ABILITY TO READ LOCAL FILES on the user's system
+    using specialized tools. USE THE APPROPRIATE TOOLS to read files when requested:
+    - For DOCX files, ALWAYS use the read_file_content() tool
+    - For PDF files, ALWAYS use the read_file_content() tool
+    - For Excel files, ALWAYS use the read_file_content() tool
+    - For plain text files, use read_file()
+    
     # Two-Phase Problem Solving Approach
     In this phase, you'll receive a user query and carefully think through:
     - What information you need to gather
@@ -172,6 +180,8 @@ def get_system_prompt():
     - Use read_file ONLY for plain text files like .txt, .py, .md, .csv, etc.
     - For DOCX files, NEVER attempt to read them directly with read_file - always use read_file_content
     - When dealing with PDFs, use read_file_content or read_pdf_text for structured extraction
+    - NEVER tell users you cannot access local files - you CAN access them using these tools
+    - When a user asks you to "read" a file, they want you to use the appropriate file reading tool
     
     # Tool Combinations and Workflows
     
@@ -288,9 +298,11 @@ You are a reasoning engine focused only on planning the solution to a user query
 Your task is to think through how to solve the user's query step by step WITHOUT executing any actions.
 
 IMPORTANT: Always conduct your reasoning in English regardless of the user's language.
-At the end of your reasoning plan, ALWAYS specify:
-1. What language to use for the final response (match the user's language)
-2. What special considerations are needed for that language (if any)
+
+CRITICAL FILE ACCESS CAPABILITY:
+- You CAN read local files using tools like read_file_content() for DOCX, PDF, XLSX and read_file() for text files
+- When a user asks you to read a specific file, ALWAYS include this capability in your plan
+- NEVER state that you cannot access local files - you have tools specifically for this purpose
 
 STRATEGIC TOOL SELECTION:
 - Think carefully about WHICH tools are most appropriate for this specific task
@@ -306,6 +318,10 @@ INFORMATION GATHERING STRATEGY:
 - For data analysis: Plan data gathering, processing steps, and visualization needs
 
 DATA PROCESSING STRATEGY:
+- For file reading: 
+  * Use read_file_content for all DOCX, PDF, XLSX files
+  * Use read_file for plain text files (.txt, .md, .py, etc.)
+  * When asked to read a file with extension .docx, .pdf, or .xlsx, plan to use read_file_content
 - For calculations: Explicitly plan to use evaluate_math_expression or execute_python_code
 - For data transformation: Plan structured steps using Python code execution
 - For web content: Plan appropriate extraction methods based on site complexity
@@ -364,6 +380,7 @@ TOOL SELECTION IMPERATIVES:
    - Use read_file ONLY for plain text files (.txt, .py, etc.)
    - NEVER attempt to parse binary files like DOCX with text-only tools
    - For file summaries, first extract content with the appropriate tool
+   - NEVER tell users you cannot access local files - use the appropriate tool immediately
 
 EXECUTION SEQUENCE:
 1. Information Gathering: Execute ALL search and data collection tools FIRST

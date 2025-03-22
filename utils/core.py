@@ -454,35 +454,4 @@ def analyze_user_input(user_input: str, detect_preferences: bool = True) -> dict
                      f"Identified {len(extracted_info.get('preferences', {}))} preferences and {len(extracted_info.get('topics_of_interest', []))} topics")
     return extracted_info
 
-# Legacy functions maintained for backward compatibility
-def write_note(content: str) -> str:
-    """
-    Legacy function that writes a note to the memory file under 'notes' topic.
-    
-    Args:
-        content: The note content to write
-        
-    Returns:
-        Status message
-    """
-    success = update_memory("notes", f"note_{int(time.time())}", content, importance=3)
-    return "Note saved successfully" if success else "Failed to save note"
-
-def read_note() -> str:
-    """
-    Legacy function that reads all notes from memory.
-    
-    Returns:
-        String containing all notes
-    """
-    memory = read_memory("notes")
-    
-    if "notes" in memory:
-        notes = memory["notes"]
-        if notes:
-            return "\n\n---\n\n".join([f"{datetime.datetime.fromisoformat(item['last_updated']).strftime('%Y-%m-%d %H:%M:%S')}\n{item['value']}" 
-                                     for item in notes.values()])
-        else:
-            return "No notes found."
-    else:
-        return "No notes found."
+# Legacy note functions removed - replaced by memory system
