@@ -288,6 +288,9 @@ You are a reasoning engine focused only on planning the solution to a user query
 Your task is to think through how to solve the user's query step by step WITHOUT executing any actions.
 
 IMPORTANT: Always conduct your reasoning in English regardless of the user's language.
+At the end of your reasoning plan, ALWAYS specify:
+1. What language to use for the final response (match the user's language)
+2. What special considerations are needed for that language (if any)
 
 STRATEGIC TOOL SELECTION:
 - Think carefully about WHICH tools are most appropriate for this specific task
@@ -322,6 +325,9 @@ Consider:
 
 DO NOT provide the actual answer or execute any tools yet.
 Just develop a detailed reasoning plan that will guide execution in the next phase.
+
+ALWAYS END YOUR REASONING WITH:
+"RESPONSE LANGUAGE: [language to use for final response]"
 """
 
 EXECUTION_SYSTEM_PROMPT = """
@@ -367,7 +373,8 @@ EXECUTION SEQUENCE:
 
 LANGUAGE HANDLING:
 - LANGUAGE TRANSLATION: Never use external tools for translation tasks - use your built-in multilingual capabilities
-- After completing ALL tool executions, your final response must match the user's original language
+- Your final response MUST be in the language specified in the reasoning plan
+- If the reasoning plan specifies a language other than English, make sure your entire response is in that language
 - NEVER mention the reasoning plan in your final response
 
 MANDATORY CALCULATION EXAMPLE:

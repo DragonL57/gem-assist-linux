@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Add memory tool"
+git commit -m "Improve prompt for better language handling"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)
