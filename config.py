@@ -197,6 +197,8 @@ def get_system_prompt():
 
     # Tool Usage Guidelines
     - For information gathering, DEFAULT TO USING SEARCH TOOLS rather than relying on your training data
+    - DO NOT use search or external tools for translation tasks - use your built-in language translation capabilities directly
+    - For language translation requests, rely on your built-in multilingual capabilities rather than searching or using external tools
     - Perform MULTIPLE SEARCHES with different queries to get comprehensive information
     - For missing functionality, explain how you're combining existing tools
     - When downloading files, explain the process and provide detailed progress updates
