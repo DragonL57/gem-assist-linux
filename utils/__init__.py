@@ -9,7 +9,7 @@ from .filesystem import (
     list_dir, get_drives, get_directory_size, get_multiple_directory_size,
     read_file, create_directory, get_file_metadata, write_files,
     copy_file, move_file, rename_file, rename_directory, find_files,
-    get_current_directory
+    get_current_directory, read_file_content
 )
 from .network import (
     get_website_text_content, http_get_request, http_post_request,
@@ -55,7 +55,7 @@ TOOLS = [
     list_dir, get_drives, get_directory_size, get_multiple_directory_size,
     read_file, create_directory, get_file_metadata, write_files,
     copy_file, move_file, rename_file, rename_directory, find_files,
-    get_current_directory,
+    get_current_directory, read_file_content,
     
     # Network tools
     get_website_text_content, http_get_request, http_post_request,
@@ -103,5 +103,5 @@ __all__ = [
     'advanced_duckduckgo_search', 'google_search', 'meta_search',
     'convert_document', 'read_excel_file', 'read_excel_structure', 'read_pdf_text', 'convert_excel_to_format',
     'extract_structured_data', 'extract_tables_to_dataframes', 'scrape_with_pagination', 'scrape_dynamic_content',
-    'execute_python_code', 'analyze_pandas_dataframe'
+    'execute_python_code', 'analyze_pandas_dataframe', 'read_file_content'
 ]

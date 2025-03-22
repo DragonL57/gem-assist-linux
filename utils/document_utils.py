@@ -34,7 +34,8 @@ except ImportError:
 
 from .core import tool_message_print, tool_report_print
 
-def convert_document(source_file: str, target_format: str, output_dir: Optional[str] = None) -> dict:
+def convert_document(source_file: str, target_format: str, output_dir: Optional[str] = None, 
+                    cleanup_temp_files: bool = False) -> dict:
     """
     Convert a document to a different format using LibreOffice.
     
@@ -42,6 +43,7 @@ def convert_document(source_file: str, target_format: str, output_dir: Optional[
         source_file: The path to the source file
         target_format: The target format (e.g., 'pdf', 'docx', 'odt')
         output_dir: The directory to save the output file (default: same as source file)
+        cleanup_temp_files: Whether to clean up temporary files after conversion
     
     Returns:
         A dictionary with conversion status and output file path
@@ -71,12 +73,17 @@ def convert_document(source_file: str, target_format: str, output_dir: Optional[
     
     # Create a temporary script to handle conversion
     # This avoids issues with special characters in filenames
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as script:
+    temp_files = []
+    script = None
+    try:
+        script = tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False)
+        temp_files.append(script.name)
+        
         script.write('#!/bin/bash\n')
         script.write(f'cd "{os.path.dirname(source_file)}"\n')
         script.write(f'libreoffice --headless --convert-to {target_format} "{source_file}" --outdir "{output_dir}"\n')
-    
-    try:
+        script.close()
+        
         # Make the script executable
         os.chmod(script.name, 0o755)
         
@@ -91,23 +98,32 @@ def convert_document(source_file: str, target_format: str, output_dir: Optional[
         
         # Check if conversion was successful
         if process.returncode == 0 and os.path.exists(output_file):
-            return {
+            result = {
                 "success": True,
                 "output_file": output_file,
                 "stdout": stdout,
                 "stderr": stderr
             }
         else:
-            return {
+            result = {
                 "success": False,
                 "error": f"Conversion failed: {stderr}",
                 "output_file": None,
                 "stdout": stdout,
                 "stderr": stderr
             }
+        
+        return result
+    
     finally:
-        # Clean up the temporary script
-        os.unlink(script.name)
+        # Clean up the temporary script and any other temp files
+        if cleanup_temp_files:
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                except Exception:
+                    pass
 
 def read_excel_file(filepath: str, sheet_name: Literal["0", "1", "2"] = "0", 
                    return_format: Literal["json", "csv", "dict", "dataframe"] = "json") -> Dict[str, Any]:

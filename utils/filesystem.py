@@ -7,8 +7,10 @@ import os
 import shutil
 import glob
 import platform
-from typing import Dict, List
+from typing import Dict, List, Any
 import datetime
+import mimetypes
+import tempfile
 from pydantic import BaseModel, Field
 
 from .core import tool_message_print, tool_report_print
@@ -126,7 +128,7 @@ def get_drives() -> list[dict]:
                      - 'OsType': The OS type (e.g., "Windows", "Linux", "MacOS").
                      - 'Drive': The drive letter (e.g., "C:") or mount point (e.g., "/").
                      - 'Type': The drive type (e.g., "Fixed", "Removable", "Network").
-                     - 'FileSystem': The file system type (e.g., "NTFS", "ext4", "apfs"), or 'N/A'.
+                     - 'FileSystem': The file system type (e.e., "NTFS", "ext4", "apfs"), or 'N/A'.
                      - 'FreeSpace': The amount of free space in human-readable format (GB or MB), or 'N/A'.
                      - 'TotalSize': The total size of the drive in human-readable format (GB or MB), or 'N/A'.
     """
@@ -265,10 +267,12 @@ def get_multiple_directory_size(paths: list[str], max_depth: int = 10, bypass_sa
 
 def read_file(filepath: str) -> str:
     """
-    Read content from a single file, in utf-8 encoding only.
+    Read content from a single file, in utf-8 encoding only. 
+    !!!IMPORTANT: For non-text files (PDF, DOCX, XLSX, etc.) use read_file_content instead!!!
+    This function is ONLY for plain text files like .txt, .py, etc.
 
     Args:
-      filepath: The path to the file.
+      filepath: The path to the file (must be a plain text file).
 
     Returns:
         str: The content of the file as a string.
@@ -505,3 +509,158 @@ def find_files(pattern: str, directory: str = ".", recursive: bool = False,
     except OSError as e:
         tool_report_print("Error:", str(e), is_error=True)
         return f"Error: {e}"  # Return the system error message
+
+def read_file_content(file_path: str, force_text_output: bool = False) -> Dict[str, Any]:
+    """
+    Read file content efficiently without leaving residual files.
+    Automatically detects file type and uses the appropriate method.
+    
+    Args:
+        file_path: Path to the file to read
+        force_text_output: Whether to force output as text for all file types
+        
+    Returns:
+        Dictionary containing file content and metadata
+    """
+    tool_message_print("read_file_content", [
+        ("file_path", file_path),
+        ("force_text_output", str(force_text_output))
+    ])
+    
+    if not os.path.exists(file_path):
+        tool_report_print("Error reading file:", f"File not found: {file_path}", is_error=True)
+        return {"error": f"File not found: {file_path}"}
+    
+    file_ext = os.path.splitext(file_path)[1].lower()
+    file_size = os.path.getsize(file_path)
+    
+    result = {
+        "filename": os.path.basename(file_path),
+        "file_size": file_size,
+        "file_type": file_ext,
+        "last_modified": datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    try:
+        # Text files - direct reading, always as text
+        if file_ext in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.csv', '.log', '.sh']:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+                result["content"] = content
+                result["content_type"] = "text"
+                result["encoding"] = "utf-8"
+                
+        # Excel files - use pandas without creating temp files
+        elif file_ext in ['.xlsx', '.xls']:
+            try:
+                import pandas as pd
+                # Import locally to prevent dependency issues
+                from .document_utils import read_excel_file
+                
+                # Get Excel content as structured data
+                if force_text_output:
+                    # If text is requested, convert to CSV string
+                    df = pd.read_excel(file_path)
+                    result["content"] = df.to_csv(index=False)
+                    result["content_type"] = "text"
+                else:
+                    # Return structured data
+                    data = read_excel_file(file_path, return_format="dict")
+                    result["content"] = data
+                    result["content_type"] = "structured"
+                    
+                    # Add Excel-specific metadata
+                    from .document_utils import read_excel_structure
+                    result["structure"] = read_excel_structure(file_path)
+            except ImportError:
+                result["error"] = "pandas not installed, cannot read Excel files"
+                result["content"] = f"Error: pandas not installed. Install with 'uv pip install pandas'"
+                result["content_type"] = "error"
+        
+        # PDF files - read directly with PyPDF2, no temp files
+        elif file_ext == '.pdf':
+            try:
+                # Import locally to prevent dependency issues
+                from .document_utils import read_pdf_text
+                content = read_pdf_text(file_path)
+                
+                result["content"] = content
+                result["content_type"] = "text"
+            except ImportError:
+                result["error"] = "PyPDF2 not installed, cannot read PDF files"
+                result["content"] = f"Error: PyPDF2 not installed. Install with 'uv pip install PyPDF2'"
+                result["content_type"] = "error"
+        
+        # Word documents - read directly with python-docx
+        elif file_ext in ['.docx', '.doc']:
+            try:
+                if file_ext == '.docx':
+                    import docx
+                    doc = docx.Document(file_path)
+                    content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                    result["content"] = content
+                    result["content_type"] = "text"
+                else:
+                    # For old .doc format, we need conversion, but will clean up after
+                    with tempfile.TemporaryDirectory() as temp_dir:
+                        from .document_utils import convert_document
+                        converted = convert_document(file_path, "docx", temp_dir)
+                        
+                        if converted["success"]:
+                            temp_file = converted["output_file"]
+                            import docx
+                            doc = docx.Document(temp_file)
+                            content = "\n".join([paragraph.text for paragraph in doc.paragraphs])
+                            result["content"] = content
+                            result["content_type"] = "text"
+                            # Temp files will be automatically deleted when the context manager exits
+                        else:
+                            result["error"] = f"Failed to convert .doc file: {converted.get('error')}"
+                            result["content_type"] = "error"
+            except ImportError:
+                result["error"] = "python-docx not installed, cannot read Word documents"
+                result["content"] = f"Error: python-docx not installed. Install with 'uv pip install python-docx'"
+                result["content_type"] = "error"
+        
+        # Images - just report metadata, don't process unless requested
+        elif file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg']:
+            result["content_type"] = "image"
+            result["content"] = f"Image file: {os.path.basename(file_path)} ({file_size} bytes)"
+            
+            # Include image dimensions if PIL is available
+            try:
+                from PIL import Image
+                with Image.open(file_path) as img:
+                    result["width"] = img.width
+                    result["height"] = img.height
+                    result["mode"] = img.mode
+            except ImportError:
+                result["note"] = "Install Pillow for image dimensions: uv pip install Pillow"
+        
+        # Binary files - report metadata but don't try to read content
+        else:
+            # Try to guess content type
+            mimetype, _ = mimetypes.guess_type(file_path)
+            result["content_type"] = "binary"
+            result["mime_type"] = mimetype or "application/octet-stream"
+            result["content"] = f"Binary file: {os.path.basename(file_path)} ({file_size} bytes)"
+            
+            if force_text_output:
+                # Try to read as text if explicitly requested
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.read(4096)  # Just read a sample
+                        result["content"] = content
+                        result["note"] = "Binary file displayed as text (may contain unreadable characters)"
+                except Exception as e:
+                    result["error"] = f"Cannot display binary file as text: {str(e)}"
+        
+        tool_report_print("File read successfully:", 
+                         f"Read {file_size} bytes from {os.path.basename(file_path)}")
+        return result
+        
+    except Exception as e:
+        tool_report_print("Error reading file:", str(e), is_error=True)
+        result["error"] = str(e)
+        result["content_type"] = "error"
+        return result
