@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Improve flask UI logic"
+git commit -m "Show reasoning process on the flask UI"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

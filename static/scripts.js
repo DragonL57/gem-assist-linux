@@ -71,6 +71,9 @@ socket.on('reasoning', (data) => {
     if (reasoningContent) {
         reasoningContent.innerHTML = marked.parse(data.reasoning || "Thinking...");
         
+        // Store reasoning to attach to the next assistant message
+        storeReasoning(data.reasoning);
+        
         // Apply syntax highlighting
         reasoningContent.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightBlock(block);
@@ -301,20 +304,95 @@ function addMessageToChat(sender, message) {
         messageElement.className += ' error-message';
         messageElement.textContent = `Error: ${message}`;
     } else {
-        // For assistant messages, render markdown
+        // For assistant messages, render markdown and include reasoning and tools
         messageElement.className += ' assistant-message';
         
-        // Parse markdown and set inner HTML
-        messageElement.innerHTML = marked.parse(message);
+        // Create a container for the full response including reasoning and execution
+        const responseContainer = document.createElement('div');
+        responseContainer.className = 'assistant-response-container';
         
-        // Apply syntax highlighting to code blocks
+        // Check if we have reasoning data to include
+        const reasoningData = getStoredReasoning();
+        if (reasoningData) {
+            const reasoningSection = document.createElement('div');
+            reasoningSection.className = 'reasoning-section';
+            reasoningSection.innerHTML = `
+                <div class="reasoning-header collapsible" onclick="toggleCollapsible(this)">
+                    <span class="reasoning-icon">🧠</span>
+                    <span class="reasoning-title">Assistant's Reasoning</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="reasoning-content collapsible-content">
+                    ${marked.parse(reasoningData)}
+                </div>
+            `;
+            responseContainer.appendChild(reasoningSection);
+        }
+        
+        // Check if we have execution data to include
+        const executionData = document.getElementById('execution-container');
+        if (executionData) {
+            const executionSection = document.createElement('div');
+            executionSection.className = 'execution-section';
+            executionSection.innerHTML = `
+                <div class="execution-header collapsible" onclick="toggleCollapsible(this)">
+                    <span class="execution-icon">⚙️</span>
+                    <span class="execution-title">Tools Used</span>
+                    <span class="toggle-icon">▼</span>
+                </div>
+                <div class="execution-content collapsible-content">
+                    ${executionData.querySelector('.execution-content').innerHTML}
+                </div>
+            `;
+            responseContainer.appendChild(executionSection);
+            
+            // Remove the standalone execution container since we've incorporated it
+            executionData.remove();
+        }
+        
+        // Add the actual message content
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.innerHTML = marked.parse(message);
+        responseContainer.appendChild(messageContent);
+        
+        // Add the full container to the message
+        messageElement.appendChild(responseContainer);
+        
+        // Apply syntax highlighting to all code blocks
         messageElement.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightBlock(block);
         });
+        
+        // Clear stored reasoning now that it's been used
+        clearStoredReasoning();
     }
     
     chatArea.appendChild(messageElement);
     chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+// Function to toggle collapsible sections
+function toggleCollapsible(header) {
+    const content = header.nextElementSibling;
+    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    const icon = header.querySelector('.toggle-icon');
+    icon.textContent = content.style.display === 'none' ? '▶' : '▼';
+}
+
+// Store reasoning data to be attached to the next assistant message
+let currentReasoningData = null;
+
+function storeReasoning(reasoning) {
+    currentReasoningData = reasoning;
+}
+
+function getStoredReasoning() {
+    return currentReasoningData;
+}
+
+function clearStoredReasoning() {
+    currentReasoningData = null;
 }
 
 function addTypingIndicator() {

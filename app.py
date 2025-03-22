@@ -249,7 +249,15 @@ def process_response_with_tools(response):
             print("No more tool calls, sending final response")
             # Display the final response content in terminal 
             terminal_console.print(f"\n[bold green]Final Response:[/] [dim]{final_message.content[:100]}...[/]")
-            emit('response', {'message': final_message.content})
+            
+            # Enhanced response object with metadata
+            emit('response', {
+                'message': final_message.content,
+                'metadata': {
+                    'tool_calls_count': len(tool_calls) if tool_calls else 0,
+                    'processing_time': round(time.time() - start_time, 2) if 'start_time' in locals() else 0
+                }
+            })
             
     except Exception as e:
         traceback.print_exc()

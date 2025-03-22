@@ -70,6 +70,8 @@ body {
     background-color: #e9ecef;
     color: #212529;
     align-self: flex-start;
+    max-width: 90%;
+    padding: 10px;
 }
 
 .error-message {
@@ -134,6 +136,9 @@ code {
     align-self: center;
     flex-shrink: 0; /* Prevent shrinking */
     position: relative; /* For positioning */
+    opacity: 0.8;
+    border: 1px solid #e1e4e8;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
 .reasoning-header, .execution-header {
@@ -374,4 +379,75 @@ code {
     font-size: 0.9em;
     padding: 3px 0;
     color: #586069;
+}
+
+/* Integrated reasoning and execution in messages */
+.assistant-response-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+
+.reasoning-section, .execution-section {
+    margin: 5px 0;
+    border: 1px solid #e1e4e8;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #f6f8fa;
+}
+
+.collapsible {
+    cursor: pointer;
+    padding: 8px 12px;
+    background-color: #f1f8ff;
+    border-bottom: 1px solid #dbedff;
+    display: flex;
+    align-items: center;
+    font-size: 0.9em;
+}
+
+.collapsible:hover {
+    background-color: #e1f0ff;
+}
+
+.collapsible-content {
+    padding: 10px 15px;
+    display: none;  /* Start collapsed */
+    background-color: white;
+    font-size: 0.9em;
+}
+
+.toggle-icon {
+    margin-left: auto;
+    font-size: 0.8em;
+}
+
+.message-content {
+    margin-top: 10px;
+    line-height: 1.5;
+}
+
+/* Override tool styles when embedded in messages */
+.assistant-response-container .tool-call {
+    margin: 8px 0;
+    padding: 8px;
+    border: 1px solid #e1e4e8;
+    box-shadow: none;
+}
+
+.assistant-response-container .tool-result,
+.assistant-response-container .tool-error {
+    margin-top: 5px;
+    padding: 5px;
+    font-size: 0.85em;
+}
+
+/* Badge style for tool count */
+.tool-count-badge {
+    background-color: #0366d6;
+    color: white;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 0.7em;
+    margin-left: 8px;
 }
