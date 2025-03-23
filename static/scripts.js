@@ -10,19 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Set model information if available
+    // Fetch initial model info
     fetch('/model-info')
         .then(response => response.json())
         .then(data => {
-            if (data.model) {
-                document.getElementById('model-info').textContent = data.model;
+            if (data.name && data.model) {
+                document.getElementById('model-info').textContent = `${data.name} (${data.model})`;
             }
         })
-        .catch(() => {
-            // If request fails, keep the default text
-        });
+        .catch(console.error);
 
-    // Fetch tools info when page loads
+    // Fetch tools info
     fetchAvailableTools();
 });
 
@@ -42,12 +40,17 @@ function sendMessage() {
     }
 }
 
-// Add debugging to see when events are received
+socket.on('connected', (data) => {
+    console.log('Connected to server', data);
+    if (data.name && data.model) {
+        document.getElementById('model-info').textContent = `${data.name} (${data.model})`;
+    }
+});
+
 socket.on('reasoning_start', () => {
     console.log("Reasoning phase started");
     removeReasoningContainer();
     
-    // Create a reasoning container
     const chatArea = document.getElementById('chat-area');
     const reasoningContainer = document.createElement('div');
     reasoningContainer.id = 'reasoning-container';
@@ -55,10 +58,10 @@ socket.on('reasoning_start', () => {
     reasoningContainer.innerHTML = `
         <div class="reasoning-header">
             <span class="reasoning-icon">🧠</span>
-            <span class="reasoning-title">Reasoning Phase</span>
+            <span class="reasoning-title">Understanding & Planning</span>
         </div>
         <div class="reasoning-content" id="reasoning-content">
-            <div class="thinking-indicator">Thinking...</div>
+            <div class="thinking-indicator">Analyzing request...</div>
         </div>
     `;
     chatArea.appendChild(reasoningContainer);
@@ -66,13 +69,16 @@ socket.on('reasoning_start', () => {
 });
 
 socket.on('reasoning', (data) => {
-    console.log("Reasoning data received", data);
+    console.log("Reasoning received", data);
     const reasoningContent = document.getElementById('reasoning-content');
-    if (reasoningContent) {
-        reasoningContent.innerHTML = marked.parse(data.reasoning || "Thinking...");
+    if (reasoningContent && data.content) {
+        reasoningContent.innerHTML = marked.parse(data.content);
         
-        // Store reasoning to attach to the next assistant message
-        storeReasoning(data.reasoning);
+        // Remove thinking indicator if it exists
+        const thinkingIndicator = reasoningContent.querySelector('.thinking-indicator');
+        if (thinkingIndicator) {
+            thinkingIndicator.remove();
+        }
         
         // Apply syntax highlighting
         reasoningContent.querySelectorAll('pre code').forEach((block) => {
@@ -87,58 +93,10 @@ socket.on('reasoning', (data) => {
 socket.on('execution_start', () => {
     console.log("Execution phase started");
     removeTypingIndicator();
-    
-    // Always create the execution container when execution phase starts
     createExecutionContainer();
-    
-    // Make sure reasoning container is expanded during generation
-    const reasoningContainer = document.getElementById('reasoning-container');
-    if (reasoningContainer) {
-        reasoningContainer.style.display = 'block';
-    }
 });
 
-socket.on('tool_call', (data) => {
-    console.log("Tool call received", data);
-    // Make sure execution container exists
-    if (!document.getElementById('execution-container')) {
-        createExecutionContainer();
-    }
-    
-    const executionContent = document.getElementById('execution-content');
-    if (executionContent) {
-        const toolCallDiv = document.createElement('div');
-        toolCallDiv.className = 'tool-call';
-        toolCallDiv.id = `tool-call-${data.name}-${Date.now()}`;
-        
-        let argsHtml = '';
-        if (data.args) {
-            const args = data.args;
-            argsHtml = Object.keys(args).map(key => {
-                const value = typeof args[key] === 'string' && args[key].length > 50 
-                    ? args[key].substring(0, 47) + '...' 
-                    : args[key];
-                return `<div class="tool-arg"><span class="arg-name">${key}:</span> <span class="arg-value">${value}</span></div>`;
-            }).join('');
-        }
-        
-        toolCallDiv.innerHTML = `
-            <div class="tool-name">${data.name}</div>
-            <div class="tool-args">${argsHtml}</div>
-            <div class="tool-status">Running...</div>
-        `;
-        
-        executionContent.appendChild(toolCallDiv);
-        
-        const chatArea = document.getElementById('chat-area');
-        chatArea.scrollTop = chatArea.scrollHeight;
-    }
-});
-
-// Ensure the execution container is created on execution_start
 function createExecutionContainer() {
-    console.log("Creating execution container");
-    // Remove existing execution container if any
     const existingContainer = document.getElementById('execution-container');
     if (existingContainer) {
         existingContainer.remove();
@@ -151,7 +109,7 @@ function createExecutionContainer() {
     executionContainer.innerHTML = `
         <div class="execution-header">
             <span class="execution-icon">⚙️</span>
-            <span class="execution-title">Execution Phase</span>
+            <span class="execution-title">Working on Solution</span>
         </div>
         <div class="execution-content" id="execution-content"></div>
     `;
@@ -161,7 +119,6 @@ function createExecutionContainer() {
 
 socket.on('thinking', (data) => {
     if (data.content && data.content.trim()) {
-        // Create execution container if it doesn't exist yet
         if (!document.getElementById('execution-container')) {
             createExecutionContainer();
         }
@@ -179,80 +136,90 @@ socket.on('thinking', (data) => {
     }
 });
 
+socket.on('tool_call', (data) => {
+    console.log("Tool call", data);
+    if (!document.getElementById('execution-container')) {
+        createExecutionContainer();
+    }
+    
+    const executionContent = document.getElementById('execution-content');
+    if (executionContent) {
+        const toolCallDiv = document.createElement('div');
+        toolCallDiv.className = 'tool-call';
+        toolCallDiv.id = `tool-call-${data.name}-${Date.now()}`;
+        
+        let argsHtml = '';
+        if (data.args) {
+            argsHtml = Object.entries(data.args)
+                .map(([key, value]) => {
+                    const displayValue = typeof value === 'string' && value.length > 50 
+                        ? value.substring(0, 47) + '...' 
+                        : JSON.stringify(value);
+                    return `<div class="tool-arg"><span class="arg-name">${key}:</span> <span class="arg-value">${displayValue}</span></div>`;
+                }).join('');
+        }
+        
+        toolCallDiv.innerHTML = `
+            <div class="tool-name">${data.name}</div>
+            <div class="tool-args">${argsHtml}</div>
+            <div class="tool-status">Running...</div>
+        `;
+        
+        executionContent.appendChild(toolCallDiv);
+        executionContent.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+});
+
 socket.on('tool_result', (data) => {
     const executionContent = document.getElementById('execution-content');
     if (executionContent) {
-        // Find the tool call div
-        const toolCalls = executionContent.querySelectorAll('.tool-call');
-        let toolCallDiv = null;
-        
-        // Find the most recent tool call div for this tool
-        for (let i = toolCalls.length - 1; i >= 0; i--) {
-            if (toolCalls[i].querySelector('.tool-name').textContent === data.name) {
-                toolCallDiv = toolCalls[i];
-                break;
-            }
-        }
+        // Find the most recent matching tool call
+        const toolCalls = Array.from(executionContent.querySelectorAll('.tool-call'));
+        const toolCallDiv = toolCalls.reverse()
+            .find(div => div.querySelector('.tool-name').textContent === data.name);
         
         if (toolCallDiv) {
             const statusDiv = toolCallDiv.querySelector('.tool-status');
             statusDiv.textContent = `Completed in ${data.execution_time}s`;
             statusDiv.classList.add('success');
             
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'tool-result';
-            
-            if (typeof data.result === 'string' && (data.result.startsWith('{') || data.result.startsWith('['))) {
+            if (data.result) {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'tool-result';
+                
+                // Try to parse and format as JSON if applicable
                 try {
-                    // Try to parse and format as JSON
-                    const jsonObj = JSON.parse(data.result);
-                    const jsonStr = JSON.stringify(jsonObj, null, 2);
-                    resultDiv.innerHTML = `<pre><code class="language-json">${jsonStr}</code></pre>`;
+                    if (typeof data.result === 'string' && 
+                        (data.result.startsWith('{') || data.result.startsWith('['))) {
+                        const jsonObj = JSON.parse(data.result);
+                        resultDiv.innerHTML = `<pre><code class="language-json">${JSON.stringify(jsonObj, null, 2)}</code></pre>`;
+                    } else {
+                        resultDiv.textContent = data.result;
+                    }
                 } catch (e) {
-                    // If not valid JSON, show as regular text
                     resultDiv.textContent = data.result;
                 }
-            } else {
-                resultDiv.textContent = data.result;
+                
+                toolCallDiv.appendChild(resultDiv);
+                
+                // Apply syntax highlighting
+                const codeBlock = resultDiv.querySelector('pre code');
+                if (codeBlock) {
+                    hljs.highlightBlock(codeBlock);
+                }
             }
             
-            toolCallDiv.appendChild(resultDiv);
-            
-            // Apply syntax highlighting
-            const codeBlock = resultDiv.querySelector('pre code');
-            if (codeBlock) {
-                hljs.highlightBlock(codeBlock);
-            }
-        } else {
-            // Create a standalone result display if tool call div not found
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'standalone-result';
-            resultDiv.innerHTML = `
-                <div class="tool-name">${data.name} <span class="success">(${data.execution_time}s)</span></div>
-                <div class="tool-result">${data.result}</div>
-            `;
-            executionContent.appendChild(resultDiv);
+            toolCallDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        
-        const chatArea = document.getElementById('chat-area');
-        chatArea.scrollTop = chatArea.scrollHeight;
     }
 });
 
 socket.on('tool_error', (data) => {
     const executionContent = document.getElementById('execution-content');
     if (executionContent) {
-        // Find the tool call div
-        const toolCalls = executionContent.querySelectorAll('.tool-call');
-        let toolCallDiv = null;
-        
-        // Find the most recent tool call div for this tool
-        for (let i = toolCalls.length - 1; i >= 0; i--) {
-            if (toolCalls[i].querySelector('.tool-name').textContent === data.name) {
-                toolCallDiv = toolCalls[i];
-                break;
-            }
-        }
+        const toolCalls = Array.from(executionContent.querySelectorAll('.tool-call'));
+        const toolCallDiv = toolCalls.reverse()
+            .find(div => div.querySelector('.tool-name').textContent === data.name);
         
         if (toolCallDiv) {
             const statusDiv = toolCallDiv.querySelector('.tool-status');
@@ -264,116 +231,81 @@ socket.on('tool_error', (data) => {
             errorDiv.textContent = data.error;
             
             toolCallDiv.appendChild(errorDiv);
-        } else {
-            // Create a standalone error display if tool call div not found
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'standalone-error';
-            errorDiv.innerHTML = `
-                <div class="tool-name">${data.name} <span class="error">Failed</span></div>
-                <div class="tool-error">${data.error}</div>
-            `;
-            executionContent.appendChild(errorDiv);
+            toolCallDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-        
-        const chatArea = document.getElementById('chat-area');
-        chatArea.scrollTop = chatArea.scrollHeight;
     }
 });
 
-socket.on('response', (data) => {
-    // Enable input now that we have a response
+socket.on('error', (data) => {
+    console.error('Error:', data);
     enableInput();
-    
-    // Remove typing indicator
     removeTypingIndicator();
-    
-    // Don't remove the reasoning and execution containers yet,
-    // they'll be incorporated into the message with collapsed sections
+    addMessageToChat('error', data.message || 'An error occurred');
+});
+
+socket.on('response', (data) => {
+    enableInput();
+    removeTypingIndicator();
     
     if (data.error) {
         addMessageToChat('error', data.error);
     } else {
-        addMessageToChat('assistant', data.message);
+        // Create response with metadata
+        const responseData = {
+            message: data.message,
+            metadata: {
+                reasoning: data.metadata?.reasoning,
+                toolCallsCount: data.metadata?.tool_calls_count
+            }
+        };
+        addMessageToChat('assistant', responseData);
     }
 });
 
-function addMessageToChat(sender, message) {
+function addMessageToChat(sender, data) {
     const chatArea = document.getElementById('chat-area');
     const messageElement = document.createElement('div');
     messageElement.className = 'message';
     
-    // Style based on sender
     if (sender === 'user') {
         messageElement.className += ' user-message';
-        messageElement.textContent = message;
+        messageElement.textContent = data;
     } else if (sender === 'error') {
         messageElement.className += ' error-message';
-        messageElement.textContent = `Error: ${message}`;
+        messageElement.textContent = `Error: ${data}`;
     } else {
-        // For assistant messages, render markdown and include reasoning and tools
         messageElement.className += ' assistant-message';
-        
-        // Create a container for the full response including reasoning and execution
         const responseContainer = document.createElement('div');
         responseContainer.className = 'assistant-response-container';
         
-        // Check if we have reasoning data to include
-        const reasoningData = getStoredReasoning();
-        if (reasoningData) {
-            const reasoningSection = document.createElement('div');
-            reasoningSection.className = 'reasoning-section';
-            reasoningSection.innerHTML = `
-                <div class="reasoning-header collapsible" onclick="toggleCollapsible(this)">
-                    <span class="reasoning-icon">🧠</span>
-                    <span class="reasoning-title">Assistant's Reasoning</span>
-                    <span class="toggle-icon">▶</span>
-                </div>
-                <div class="reasoning-content collapsible-content" style="display: none;">
-                    ${marked.parse(reasoningData)}
-                </div>
-            `;
-            responseContainer.appendChild(reasoningSection);
+        // Add execution section if there were tool calls
+        const executionContainer = document.getElementById('execution-container');
+        if (executionContainer) {
+            const executionContent = executionContainer.querySelector('.execution-content').innerHTML;
+            if (executionContent) {
+                const executionSection = createCollapsibleSection(
+                    `⚙️ Actions Used (${data.metadata?.toolCallsCount || 0})`,
+                    executionContent,
+                    'execution-section'
+                );
+                responseContainer.appendChild(executionSection);
+            }
+            executionContainer.remove();
         }
         
-        // Check if we have execution data to include
-        const executionData = document.getElementById('execution-container');
-        if (executionData) {
-            const executionSection = document.createElement('div');
-            executionSection.className = 'execution-section';
-            executionSection.innerHTML = `
-                <div class="execution-header collapsible" onclick="toggleCollapsible(this)">
-                    <span class="execution-icon">⚙️</span>
-                    <span class="execution-title">Tools Used</span>
-                    <span class="toggle-icon">▶</span>
-                </div>
-                <div class="execution-content collapsible-content" style="display: none;">
-                    ${executionData.querySelector('.execution-content').innerHTML}
-                </div>
-            `;
-            responseContainer.appendChild(executionSection);
-            
-            // Remove the standalone execution container since we've incorporated it
-            executionData.remove();
-        }
-        
-        // Add the actual message content
+        // Add the main message content
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
-        messageContent.innerHTML = marked.parse(message);
+        messageContent.innerHTML = marked.parse(data.message);
         responseContainer.appendChild(messageContent);
         
-        // Add the full container to the message
         messageElement.appendChild(responseContainer);
         
-        // Apply syntax highlighting to all code blocks
+        // Apply syntax highlighting
         messageElement.querySelectorAll('pre code').forEach((block) => {
             hljs.highlightBlock(block);
         });
         
-        // Clear stored reasoning now that it's been used
-        clearStoredReasoning();
-        
-        // Remove any remaining reasoning container from the active process
         removeReasoningContainer();
     }
     
@@ -381,68 +313,54 @@ function addMessageToChat(sender, message) {
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
-// Function to toggle collapsible sections
+function createCollapsibleSection(title, content, className) {
+    const section = document.createElement('div');
+    section.className = className;
+    section.innerHTML = `
+        <div class="collapsible" onclick="toggleCollapsible(this)">
+            <span class="section-title">${title}</span>
+            <span class="toggle-icon">▶</span>
+        </div>
+        <div class="collapsible-content" style="display: none;">
+            ${content}
+        </div>
+    `;
+    return section;
+}
+
 function toggleCollapsible(header) {
     const content = header.nextElementSibling;
-    content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    const isHidden = content.style.display === 'none';
+    content.style.display = isHidden ? 'block' : 'none';
     const icon = header.querySelector('.toggle-icon');
-    icon.textContent = content.style.display === 'none' ? '▶' : '▼';
+    icon.textContent = isHidden ? '▼' : '▶';
 }
 
-// Store reasoning data to be attached to the next assistant message
-let currentReasoningData = null;
-
-function storeReasoning(reasoning) {
-    currentReasoningData = reasoning;
-}
-
-function getStoredReasoning() {
-    return currentReasoningData;
-}
-
-function clearStoredReasoning() {
-    currentReasoningData = null;
-}
 
 function addTypingIndicator() {
-    removeTypingIndicator(); // Remove any existing indicator first
-    
+    removeTypingIndicator();
     const chatArea = document.getElementById('chat-area');
     const typingIndicator = document.createElement('div');
     typingIndicator.id = 'typing-indicator';
     typingIndicator.className = 'message assistant-message typing-indicator';
-    
-    // Create animated dots
     typingIndicator.innerHTML = `
         <span class="dot-typing">Assistant is thinking</span>
         <span class="dot">.</span>
         <span class="dot">.</span>
         <span class="dot">.</span>
     `;
-    
     chatArea.appendChild(typingIndicator);
     chatArea.scrollTop = chatArea.scrollHeight;
 }
 
 function removeTypingIndicator() {
-    const typingIndicator = document.getElementById('typing-indicator');
-    if (typingIndicator) {
-        typingIndicator.remove();
-    }
+    const indicator = document.getElementById('typing-indicator');
+    if (indicator) indicator.remove();
 }
 
 function removeReasoningContainer() {
-    const reasoningContainer = document.getElementById('reasoning-container');
-    if (reasoningContainer) {
-        reasoningContainer.remove();
-    }
-    
-    const executionContainer = document.getElementById('execution-container');
-    if (executionContainer) {
-        // Don't remove the execution container during processing,
-        // it will be incorporated into the final message
-        // This will be handled in addMessageToChat
-    }
+    const container = document.getElementById('reasoning-container');
+    if (container) container.remove();
 }
 
 function disableInput() {
@@ -456,19 +374,15 @@ function enableInput() {
     document.getElementById('user-input').focus();
 }
 
-// Fetch and display available tools
 function fetchAvailableTools() {
     fetch('/tools-info')
         .then(response => response.json())
         .then(data => {
-            const categoriesContainer = document.getElementById('tools-categories');
-            if (!categoriesContainer) return;
+            const container = document.getElementById('tools-categories');
+            if (!container) return;
             
-            categoriesContainer.innerHTML = '';
-            
-            Object.keys(data.categories).forEach(category => {
-                const tools = data.categories[category];
-                
+            container.innerHTML = '';
+            Object.entries(data.categories).forEach(([category, tools]) => {
                 const categoryDiv = document.createElement('div');
                 categoryDiv.className = 'tool-category';
                 
@@ -489,15 +403,13 @@ function fetchAvailableTools() {
                 
                 categoryDiv.appendChild(categoryName);
                 categoryDiv.appendChild(toolsList);
-                categoriesContainer.appendChild(categoryDiv);
+                container.appendChild(categoryDiv);
             });
             
             document.getElementById('tools-button-text').textContent = 
                 `Available Tools (${data.total_tools})`;
         })
-        .catch(error => {
-            console.error('Error fetching tools info:', error);
-        });
+        .catch(console.error);
 }
 
 function toggleToolsPanel() {
@@ -509,7 +421,6 @@ function toggleToolsPanel() {
         buttonText.textContent = buttonText.textContent.replace('Hide', 'Show');
     } else {
         buttonText.textContent = buttonText.textContent.replace('Show', 'Hide');
-        // Only fetch tools if the panel is becoming visible
         fetchAvailableTools();
     }
 }
