@@ -28,13 +28,7 @@ reddit = praw.Reddit(
     user_agent="PersonalBot/1.0",
 )
 
-# Try to import Google Search API if available
-try:
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-    GOOGLE_SEARCH_AVAILABLE = True
-except ImportError:
-    GOOGLE_SEARCH_AVAILABLE = False
+# No longer using Google Search API
 
 # Basic DuckDuckGo search tool removed - use advanced_duckduckgo_search instead
 
@@ -109,138 +103,7 @@ def advanced_duckduckgo_search(query: str, time_period: str = None,
         tool_report_print("Error during advanced DuckDuckGo search:", str(e), is_error=True)
         return [{"error": f"Search failed: {str(e)}"}]
 
-def google_search(query: str, num_results: int = 10, language: str = "en", 
-                country: str = "us", time_period: str = None, site_restrict: str = None) -> List[Dict]:
-    """
-    Perform a search using Google Custom Search API.
-    Requires GOOGLE_API_KEY and GOOGLE_CSE_ID environment variables.
-    
-    Args:
-        query: Search query
-        num_results: Number of results to return (1-10)
-        language: Language code for results
-        country: Country code for results
-        time_period: Time filter ("d": day, "w": week, "m": month, "y": year)
-        site_restrict: Restrict results to specific domain
-        
-    Returns:
-        List of search results
-    """
-    tool_message_print("google_search", [
-        ("query", query),
-        ("num_results", str(num_results)),
-        ("language", language),
-        ("country", country),
-        ("time_period", time_period or "all time")
-    ])
-    
-    if not GOOGLE_SEARCH_AVAILABLE:
-        return [{"error": "Google Search API not available. Please install google-api-python-client"}]
-    
-    google_api_key = os.getenv("GOOGLE_API_KEY")
-    google_cse_id = os.getenv("GOOGLE_CSE_ID")
-    
-    if not google_api_key or not google_cse_id:
-        return [{"error": "Google API key or Custom Search Engine ID not found in environment variables"}]
-    
-    try:
-        # Build the service
-        service = build("customsearch", "v1", developerKey=google_api_key)
-        
-        # Prepare search parameters
-        search_params = {
-            "q": query,
-            "cx": google_cse_id,
-            "num": min(num_results, 10),  # API limit is 10 results per request
-            "hl": language,
-            "gl": country
-        }
-        
-        # Add site restriction if provided
-        if site_restrict:
-            search_params["siteSearch"] = site_restrict
-        
-        # Add date restriction if provided
-        if time_period:
-            date_restrict = None
-            if time_period == "d":
-                date_restrict = "d1"  # Last day
-            elif time_period == "w":
-                date_restrict = "w1"  # Last week
-            elif time_period == "m":
-                date_restrict = "m1"  # Last month
-            elif time_period == "y":
-                date_restrict = "y1"  # Last year
-            
-            if date_restrict:
-                search_params["dateRestrict"] = date_restrict
-        
-        # Execute the search
-        search_results = service.cse().list(**search_params).execute()
-        
-        # Process and return results
-        results = []
-        if "items" in search_results:
-            for item in search_results["items"]:
-                results.append({
-                    "title": item.get("title", ""),
-                    "link": item.get("link", ""),
-                    "snippet": item.get("snippet", ""),
-                    "source": "Google"
-                })
-        
-        tool_report_print("Google search complete:", f"Found {len(results)} results for '{query}'")
-        return results
-    
-    except HttpError as e:
-        tool_report_print("Google Search API error:", str(e), is_error=True)
-        return [{"error": f"API error: {str(e)}"}]
-    
-    except Exception as e:
-        tool_report_print("Error during Google search:", str(e), is_error=True)
-        return [{"error": f"Search failed: {str(e)}"}]
-
-def meta_search(query: str, sources: List[str] = ["duckduckgo", "google", "wikipedia"], 
-               max_results_per_source: int = 5) -> Dict[str, List]:
-    """
-    Perform a search across multiple search engines and aggregate results.
-    
-    Args:
-        query: Search query
-        sources: List of search engines to use ("duckduckgo", "google", "wikipedia")
-        max_results_per_source: Maximum number of results per search engine
-        
-    Returns:
-        Dictionary with results from each search engine
-    """
-    tool_message_print("meta_search", [
-        ("query", query),
-        ("sources", str(sources)),
-        ("max_results_per_source", str(max_results_per_source))
-    ])
-    
-    results = {}
-    
-    for source in sources:
-        if source.lower() == "duckduckgo":
-            results["duckduckgo"] = advanced_duckduckgo_search(
-                query, 
-                max_results=max_results_per_source
-            )
-        elif source.lower() == "google":
-            results["google"] = google_search(
-                query,
-                num_results=max_results_per_source
-            )
-        elif source.lower() == "wikipedia":
-            wiki_results = search_wikipedia(query)[:max_results_per_source]
-            results["wikipedia"] = wiki_results
-    
-    # Count total results
-    total_results = sum(len(results.get(source, [])) for source in sources)
-    tool_report_print("Meta search complete:", f"Found {total_results} results across {len(sources)} sources")
-    
-    return results
+# google_search and meta_search have been removed
 
 def reddit_search(subreddit: str, sorting: str, query: str | None = None) -> dict:
     """

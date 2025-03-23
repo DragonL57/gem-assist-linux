@@ -176,7 +176,7 @@ def model_info():
 def tools_info():
     """Return information about available tools."""
     tool_categories = {
-        "SEARCH_TOOLS": ["advanced_duckduckgo_search", "google_search", "meta_search", "reddit_search", 
+        "SEARCH_TOOLS": ["advanced_duckduckgo_search", "reddit_search", 
                         "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"],
         "FILE_TOOLS": ["read_file", "write_files", "list_dir", "find_files", "read_file_content"],
         "WEB_TOOLS": ["get_website_text_content", "http_get_request", "http_post_request"],
