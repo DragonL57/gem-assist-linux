@@ -183,7 +183,7 @@ class Assistant:
                 messages=reasoning_messages,
                 temperature=conf.TEMPERATURE,
                 top_p=conf.TOP_P,
-                max_tokens=conf.MAX_TOKENS or 4096,  # Limit reasoning length
+                max_tokens=conf.MAX_TOKENS or 8192,  # Limit reasoning length
                 seed=conf.SEED,
                 safety_settings=conf.SAFETY_SETTINGS
             )

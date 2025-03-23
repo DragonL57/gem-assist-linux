@@ -16,6 +16,16 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'  # TODO: Move to env var
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
+class Message:
+    """Represents a message in the chat with its metadata."""
+    def __init__(self, role, content, reasoning=None, tool_calls=None, tool_results=None):
+        self.role = role
+        self.content = content
+        self.reasoning = reasoning
+        self.tool_calls = tool_calls or []
+        self.tool_results = tool_results or []
+        self.timestamp = time.time()
+
 class ChatSession:
     """Manages chat session state and assistant instance."""
     def __init__(self):
@@ -25,23 +35,46 @@ class ChatSession:
             tools=TOOLS,
             system_instruction=conf.get_system_prompt()
         )
-        self.messages = []
+        self.messages = []  # List of Message objects
         self.current_reasoning = None
         self.current_execution = None
+        self.current_tool_calls = []
+        self.current_tool_results = []
         self.processing = False
         self.stop_requested = False
 
     def clear(self):
         """Reset the session state."""
-        self.messages = []
         self.current_reasoning = None
         self.current_execution = None
+        self.current_tool_calls = []
+        self.current_tool_results = []
         self.stop_requested = False
+
+    def add_message(self, role, content, reasoning=None, tool_calls=None, tool_results=None):
+        """Add a message to the session history with metadata."""
+        message = Message(
+            role=role,
+            content=content, 
+            reasoning=reasoning,
+            tool_calls=tool_calls,
+            tool_results=tool_results
+        )
+        self.messages.append(message)
+        
+        # Add to assistant's message history for context
+        if role != "system":
+            self.assistant.messages.append({
+                "role": role,
+                "content": content
+            })
 
     def start_processing(self):
         """Mark session as processing."""
         self.processing = True
         self.stop_requested = False
+        self.current_tool_calls = []
+        self.current_tool_results = []
 
     def stop_processing(self):
         """Request processing to stop."""
@@ -56,19 +89,17 @@ class ChatSession:
         self.stop_requested = False
 
     def get_reasoning(self, message: str) -> str:
-        """Replicate assistant.py get_reasoning logic."""
-        # Create a temporary messages list for the reasoning phase
+        """Get reasoning for the current message."""
         reasoning_messages = []
         reasoning_messages.append({"role": "system", "content": conf.REASONING_SYSTEM_PROMPT})
         
         # Add limited conversation history
-        history_limit = 40
+        history_limit = 4
         if len(self.assistant.messages) > 1:
             for msg in self.assistant.messages[-history_limit:]:
                 if msg["role"] != "system":
                     reasoning_messages.append(msg)
         
-        # Add the user's new message
         reasoning_messages.append({
             "role": "user", 
             "content": f"TASK: {message}\n\nProvide your step-by-step reasoning plan."
@@ -81,9 +112,12 @@ class ChatSession:
             return f"Error in reasoning phase: {e}. Will try to proceed with execution."
 
     def process_with_tools(self, message: str, request_sid: str) -> None:
-        """Process message using assistant.py's two-phase approach."""
+        """Process message using the two-phase approach."""
         try:
             self.start_processing()
+            
+            # Store user message first
+            self.add_message("user", message)
             
             # Phase 1: Reasoning
             socketio.emit('reasoning_start', room=request_sid)
@@ -112,14 +146,6 @@ class ChatSession:
             # Add conversation history (except system message)
             for msg in self.assistant.messages[1:]:
                 execution_messages.append(msg)
-                
-            # Add the user message
-            execution_messages.append({"role": "user", "content": message})
-            self.assistant.messages.append({"role": "user", "content": message})
-            
-            if self.stop_requested:
-                socketio.emit('processing_stopped', {'phase': 'execution'}, room=request_sid)
-                return
                 
             # Get initial response which may contain tool calls
             response = self.assistant.get_completion_with_retry(execution_messages)
@@ -192,7 +218,6 @@ def handle_message(data):
     if session_id not in sessions:
         sessions[session_id] = ChatSession()
         
-    # Process the message using the two-phase approach
     session = sessions[session_id]
     if session.processing:
         emit('error', {'message': 'Already processing a message'})
@@ -219,12 +244,18 @@ def process_response(response, session, request_sid):
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls if hasattr(response_message, 'tool_calls') else None
         
-        # Check for personal information if no tool calls
+        # Store current tool calls
+        if tool_calls:
+            session.current_tool_calls.extend([{
+                'name': tc.function.name,
+                'args': json.loads(tc.function.arguments)
+            } for tc in tool_calls])
+        
+        # Check for personal information
         if not tool_calls and response_message.content:
-            if len(session.assistant.messages) >= 2 and session.assistant.messages[-1]["role"] == "user":
-                last_user_msg = session.assistant.messages[-1]["content"].lower()
+            if len(session.messages) > 0 and session.messages[-1].role == "user":
+                last_user_msg = session.messages[-1].content.lower()
                 memory_triggers = ["my name is", "i am", "i like", "i love", "i hate", "i live in", "i work", "you can call me"]
-                
                 if any(trigger in last_user_msg for trigger in memory_triggers):
                     socketio.emit('warning', {
                         'message': 'Personal information detected but no memory update performed!'
@@ -232,11 +263,19 @@ def process_response(response, session, request_sid):
         
         # If no tool calls, send the response directly
         if not tool_calls:
-            session.assistant.messages.append(response_message)
+            session.add_message(
+                role="assistant",
+                content=response_message.content,
+                reasoning=session.current_reasoning,
+                tool_calls=session.current_tool_calls,
+                tool_results=session.current_tool_results
+            )
+            
+            # Send response to client
             socketio.emit('response', {
                 'message': response_message.content,
                 'metadata': {
-                    'tool_calls_count': 0,
+                    'tool_calls_count': len(session.current_tool_calls),
                     'reasoning': session.current_reasoning
                 }
             }, room=request_sid)
@@ -247,39 +286,121 @@ def process_response(response, session, request_sid):
             socketio.emit('processing_stopped', {'phase': 'tools'}, room=request_sid)
             return
             
-        # We have tool calls to process
-        socketio.emit('thinking', {
-            'content': response_message.content or "Processing with tools..."
-        }, room=request_sid)
-        session.assistant.messages.append(response_message)
+        # Add message with all tool calls
+        tool_message = {
+            "role": "assistant",
+            "content": response_message.content,
+            "tool_calls": []
+        }
         
-        # Process each tool call
+        # Process each tool call and collect results
+        tool_results = []
+        
+        # Count for status updates
+        total_tools = len(tool_calls)
+        current_tool = 0
+        
         for tool_call in tool_calls:
+            current_tool += 1
+            socketio.emit('thinking', {
+                'content': f'Processing tool {current_tool}/{total_tools}...'
+            }, room=request_sid)
+            # Add tool call to message
+            tool_message["tool_calls"].append({
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments
+                }
+            })
+            
             if session.stop_requested:
                 socketio.emit('processing_stopped', {'phase': 'tools'}, room=request_sid)
                 return
-            process_tool_call(tool_call, session, request_sid)
+                
+            # Emit thinking on first tool
+            if tool_call == tool_calls[0] and response_message.content:
+                socketio.emit('thinking', {'content': response_message.content}, room=request_sid)
+                
+            # Process tool call
+            result = process_tool_call(tool_call, session, request_sid)
+            tool_results.append({
+                "tool_call_id": tool_call.id,
+                "name": tool_call.function.name,
+                "content": str(result) if result is not None else str(next(
+                    (r['error'] for r in session.current_tool_results 
+                     if r['name'] == tool_call.function.name and 'error' in r),
+                    "Tool call failed"
+                ))
+            })
         
-        # Get final response after tool calls
-        if session.stop_requested:
-            socketio.emit('processing_stopped', {'phase': 'final'}, room=request_sid)
-            return
+        # Record all tool interactions
+        session.assistant.messages.append(tool_message)
+        for result in tool_results:
+            session.assistant.messages.append({
+                "role": "tool",
+                **result
+            })
+
+        # Notify client that tool execution is complete
+        socketio.emit('thinking', {'content': 'Processing results...'}, room=request_sid)
+
+        # Get final response after tools
+        try:
+            # Add a reminder and tool results summary before getting final response
+            context_message = {
+                "role": "system",
+                "content": "Previous tools have been executed. Please provide a complete response that addresses the user's question using the tool results above."
+            }
+            messages_for_final = session.assistant.messages[-10:] + [context_message]
             
-        final_response = session.assistant.get_completion_with_retry()
-        final_message = final_response.choices[0].message
+            # Get response with complete context
+            final_response = session.assistant.get_completion_with_retry(messages=messages_for_final)
+            final_message = final_response.choices[0].message
+            
+            # Verify response
+            if not hasattr(final_message, 'content') or not final_message.content:
+                final_message = type('obj', (object,), {
+                    "content": "I apologize, but I encountered an issue processing all the results. Let me try again with your next request.",
+                    "tool_calls": None
+                })
+                
+        except Exception as e:
+            print(f"Error getting final response: {e}")
+            final_message = type('obj', (object,), {
+                "content": "I apologize, but I ran into an issue while processing the results. Let me try to summarize what I found before the error occurred.",
+                "tool_calls": None
+            })
         
         # Check for more tool calls
         if hasattr(final_message, 'tool_calls') and final_message.tool_calls:
             process_response(final_response, session, request_sid)
         else:
+            # Add final response to the conversation
             session.assistant.messages.append(final_message)
-            socketio.emit('response', {
+            
+            # Store the message with metadata for the session
+            session.add_message(
+                role="assistant",
+                content=final_message.content,
+                reasoning=session.current_reasoning,
+                tool_calls=session.current_tool_calls,
+                tool_results=session.current_tool_results
+            )
+            
+            # Send final response to client with all execution data
+            final_data = {
                 'message': final_message.content,
                 'metadata': {
-                    'tool_calls_count': len(tool_calls),
-                    'reasoning': session.current_reasoning
+                    'tool_calls_count': len(session.current_tool_calls),
+                    'reasoning': session.current_reasoning,
+                    'tool_calls': session.current_tool_calls,
+                    'tool_results': session.current_tool_results
                 }
-            }, room=request_sid)
+            }
+            socketio.emit('response', final_data, room=request_sid)
+            socketio.emit('thinking', {'content': None}, room=request_sid)  # Clear thinking state
             
     except Exception as e:
         error_msg = str(e)
@@ -318,7 +439,7 @@ def process_tool_call(tool_call, session, request_sid):
         # Stop if requested before tool execution
         if session.stop_requested:
             socketio.emit('processing_stopped', {'phase': 'tool_execution'}, room=request_sid)
-            return
+            return None
             
         # Execute the tool with retry on rate limit
         for retry in range(3):
@@ -327,6 +448,13 @@ def process_tool_call(tool_call, session, request_sid):
                 result = function_to_call(**converted_args)
                 execution_time = time.time() - start_time
                 
+                # Store tool result
+                session.current_tool_results.append({
+                    'name': function_name,
+                    'result': str(result),
+                    'execution_time': execution_time
+                })
+                
                 # Emit result to client
                 socketio.emit('tool_result', {
                     'name': function_name,
@@ -334,8 +462,9 @@ def process_tool_call(tool_call, session, request_sid):
                     'execution_time': round(execution_time, 4)
                 }, room=request_sid)
                 
-                session.assistant.add_toolcall_output(tool_call.id, function_name, result)
-                return
+                # Tool result will be recorded in the process_response function
+                
+                return result
                 
             except Exception as e:
                 if retry < 2 and "rate limit" in str(e).lower():
@@ -349,7 +478,12 @@ def process_tool_call(tool_call, session, request_sid):
             'name': function_name,
             'error': error_msg
         }, room=request_sid)
-        session.assistant.add_toolcall_output(tool_call.id, function_name, error_msg)
+        session.current_tool_results.append({
+            'name': function_name,
+            'error': error_msg
+        })
+        # Error will be recorded in the process_response function
+        return None
 
 if __name__ == '__main__':
     print(f"Starting Gem-Assist web interface with model: {conf.MODEL}")
