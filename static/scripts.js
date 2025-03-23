@@ -278,6 +278,20 @@ function addMessageToChat(sender, data) {
         const responseContainer = document.createElement('div');
         responseContainer.className = 'assistant-response-container';
         
+        // Add reasoning section if available
+        const reasoningContainer = document.getElementById('reasoning-container');
+        if (reasoningContainer) {
+            const reasoningContent = reasoningContainer.querySelector('.reasoning-content').innerHTML;
+            if (reasoningContent) {
+                const reasoningSection = createCollapsibleSection(
+                    '🧠 Understanding & Planning',
+                    reasoningContent,
+                    'reasoning-section'
+                );
+                responseContainer.appendChild(reasoningSection);
+            }
+        }
+        
         // Add execution section if there were tool calls
         const executionContainer = document.getElementById('execution-container');
         if (executionContainer) {
@@ -292,6 +306,7 @@ function addMessageToChat(sender, data) {
             }
             executionContainer.remove();
         }
+        
         
         // Add the main message content
         const messageContent = document.createElement('div');
