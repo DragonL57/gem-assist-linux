@@ -27,28 +27,11 @@
         </div>
         <div id="input-area">
             <input type="text" id="user-input" placeholder="Type your message..." autofocus>
-            <button id="send-button">Send</button>
+            <button id="send-button" class="action-button">Send</button>
+            <button id="stop-button" class="action-button stop-button hidden">Stop</button>
         </div>
     </div>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
     <script src="/static/scripts.js"></script>
-    <script>
-        // Global function to toggle collapsible sections
-        function toggleCollapsible(header) {
-            const content = header.nextElementSibling;
-            const isHidden = content.style.display === 'none';
-            content.style.display = isHidden ? 'block' : 'none';
-            
-            const icon = header.querySelector('.toggle-icon');
-            icon.textContent = isHidden ? '▼' : '▶';
-            
-            // Optional: Add smooth transition
-            if (isHidden) {
-                content.style.maxHeight = '300px'; // Match the CSS value
-            } else {
-                content.style.maxHeight = '0';
-            }
-        }
-    </script>
 </body>
 </html>

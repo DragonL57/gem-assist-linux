@@ -28,12 +28,32 @@ class ChatSession:
         self.messages = []
         self.current_reasoning = None
         self.current_execution = None
+        self.processing = False
+        self.stop_requested = False
 
     def clear(self):
         """Reset the session state."""
         self.messages = []
         self.current_reasoning = None
         self.current_execution = None
+        self.stop_requested = False
+
+    def start_processing(self):
+        """Mark session as processing."""
+        self.processing = True
+        self.stop_requested = False
+
+    def stop_processing(self):
+        """Request processing to stop."""
+        if self.processing:
+            self.stop_requested = True
+            return True
+        return False
+
+    def finish_processing(self):
+        """Mark session as done processing."""
+        self.processing = False
+        self.stop_requested = False
 
     def get_reasoning(self, message: str) -> str:
         """Replicate assistant.py get_reasoning logic."""
@@ -42,7 +62,7 @@ class ChatSession:
         reasoning_messages.append({"role": "system", "content": conf.REASONING_SYSTEM_PROMPT})
         
         # Add limited conversation history
-        history_limit = 4
+        history_limit = 40
         if len(self.assistant.messages) > 1:
             for msg in self.assistant.messages[-history_limit:]:
                 if msg["role"] != "system":
@@ -63,12 +83,22 @@ class ChatSession:
     def process_with_tools(self, message: str, request_sid: str) -> None:
         """Process message using assistant.py's two-phase approach."""
         try:
+            self.start_processing()
+            
             # Phase 1: Reasoning
             socketio.emit('reasoning_start', room=request_sid)
+            if self.stop_requested:
+                socketio.emit('processing_stopped', {'phase': 'reasoning'}, room=request_sid)
+                return
+                
             reasoning = self.get_reasoning(message)
             socketio.emit('reasoning', {'content': reasoning}, room=request_sid)
             self.current_reasoning = reasoning
             
+            if self.stop_requested:
+                socketio.emit('processing_stopped', {'phase': 'between_phases'}, room=request_sid)
+                return
+                
             # Phase 2: Execution
             socketio.emit('execution_start', room=request_sid)
             
@@ -87,6 +117,10 @@ class ChatSession:
             execution_messages.append({"role": "user", "content": message})
             self.assistant.messages.append({"role": "user", "content": message})
             
+            if self.stop_requested:
+                socketio.emit('processing_stopped', {'phase': 'execution'}, room=request_sid)
+                return
+                
             # Get initial response which may contain tool calls
             response = self.assistant.get_completion_with_retry(execution_messages)
             process_response(response, self, request_sid)
@@ -95,6 +129,8 @@ class ChatSession:
             error_msg = f"Error processing message: {e}. Please try again."
             socketio.emit('error', {'message': error_msg}, room=request_sid)
             self.clear()
+        finally:
+            self.finish_processing()
 
 # Store active sessions
 sessions = {}
@@ -158,11 +194,28 @@ def handle_message(data):
         
     # Process the message using the two-phase approach
     session = sessions[session_id]
+    if session.processing:
+        emit('error', {'message': 'Already processing a message'})
+        return
+        
     session.process_with_tools(user_message, session_id)
+
+@socketio.on('stop_processing')
+def handle_stop():
+    """Handle request to stop processing."""
+    session_id = request.sid
+    if session_id in sessions:
+        session = sessions[session_id]
+        if session.stop_processing():
+            emit('processing_stopped', {'phase': 'current'})
 
 def process_response(response, session, request_sid):
     """Process a response including any tool calls."""
     try:
+        if session.stop_requested:
+            socketio.emit('processing_stopped', {'phase': 'response'}, room=request_sid)
+            return
+            
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls if hasattr(response_message, 'tool_calls') else None
         
@@ -189,6 +242,11 @@ def process_response(response, session, request_sid):
             }, room=request_sid)
             return
         
+        # Stop if requested before tool execution
+        if session.stop_requested:
+            socketio.emit('processing_stopped', {'phase': 'tools'}, room=request_sid)
+            return
+            
         # We have tool calls to process
         socketio.emit('thinking', {
             'content': response_message.content or "Processing with tools..."
@@ -197,9 +255,16 @@ def process_response(response, session, request_sid):
         
         # Process each tool call
         for tool_call in tool_calls:
+            if session.stop_requested:
+                socketio.emit('processing_stopped', {'phase': 'tools'}, room=request_sid)
+                return
             process_tool_call(tool_call, session, request_sid)
         
         # Get final response after tool calls
+        if session.stop_requested:
+            socketio.emit('processing_stopped', {'phase': 'final'}, room=request_sid)
+            return
+            
         final_response = session.assistant.get_completion_with_retry()
         final_message = final_response.choices[0].message
         
@@ -250,6 +315,11 @@ def process_tool_call(tool_call, session, request_sid):
                     param.annotation, function_args[param_name]
                 )
         
+        # Stop if requested before tool execution
+        if session.stop_requested:
+            socketio.emit('processing_stopped', {'phase': 'tool_execution'}, room=request_sid)
+            return
+            
         # Execute the tool with retry on rate limit
         for retry in range(3):
             try:
@@ -269,7 +339,7 @@ def process_tool_call(tool_call, session, request_sid):
                 
             except Exception as e:
                 if retry < 2 and "rate limit" in str(e).lower():
-                    time.sleep(2 ** retry)
+                    time.sleep(2 ** retry)  # Exponential backoff
                     continue
                 raise
                 

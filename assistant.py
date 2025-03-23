@@ -167,7 +167,7 @@ class Assistant:
         reasoning_messages.append({"role": "system", "content": conf.REASONING_SYSTEM_PROMPT})
         
         # Add conversation history (limited to last few messages for context)
-        history_limit = 4  # Limit to last 2 exchanges (4 messages)
+        history_limit = 40  # Limit to last 2 exchanges (4 messages)
         if len(self.messages) > 1:  # Skip system message
             for msg in self.messages[-history_limit:]:
                 if msg["role"] != "system":
