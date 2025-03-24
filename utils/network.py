@@ -395,6 +395,55 @@ class WebContentExtractor:
         tool_report_print("Content extraction failed:", final_result["error"], is_error=True)
         return final_result
 
+# Update the existing content extraction function to use the new WebContentExtractor class
+def get_website_text_content(
+    url: str, 
+    extract_mode: str = "auto",
+    extract_links: bool = False,
+    extract_images: bool = False,
+    extract_metadata: bool = True,
+    focus_element: str = None,
+    fallback_to_dynamic: bool = False,
+    timeout: int = DEFAULT_TIMEOUT
+) -> Dict[str, Any]:
+    """
+    Enhanced webpage content extraction with multiple options for controlling output.
+    
+    Args:
+        url: The URL of the webpage to extract content from
+        extract_mode: Extraction method to use ("auto", "service", "direct")
+        extract_links: Whether to extract links from the page
+        extract_images: Whether to extract images from the page
+        extract_metadata: Whether to include metadata like title, description
+        focus_element: CSS selector to focus extraction on (e.g., "article", ".content")
+        fallback_to_dynamic: Whether to try dynamic extraction if initial methods fail
+        timeout: Request timeout in seconds
+        
+    Returns:
+        Dictionary containing extracted content, metadata, and additional elements if requested
+    """
+    return WebContentExtractor.get_website_text_content(
+        url=url,
+        extract_mode=extract_mode,
+        extract_links=extract_links,
+        extract_images=extract_images,
+        extract_metadata=extract_metadata,
+        focus_element=focus_element,
+        fallback_to_dynamic=fallback_to_dynamic,
+        timeout=timeout
+    )
+
+# Existing extract_via_service and extract_direct functions are maintained for backward compatibility
+# but now they delegate to the WebContentExtractor class
+
+def extract_via_service(url: str) -> Dict[str, Any]:
+    """Extract webpage content using the third-party service."""
+    return WebContentExtractor._extract_via_service(url)
+
+def extract_direct(url: str, focus_element: str = None, timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
+    """Extract webpage content directly using requests and BeautifulSoup."""
+    return WebContentExtractor._extract_direct(url, focus_element, timeout)
+
 def http_get_request(url: str, headers_json: str = "") -> str:
     """
     Send an HTTP GET request to a URL and return the response as a string. Can be used for interacting with REST API's
