@@ -1,5 +1,6 @@
 """
-Main entry point for GEM-Assist.
+GEM-Assist - A terminal-based assistant that can run tools.
+Main entry point and backward compatibility exports.
 """
 import os
 import inspect
@@ -16,8 +17,12 @@ from rich.theme import Theme
 import config as conf
 from utils import TOOLS
 from assistant import Assistant
+from assistant.session import ChatSession, SessionManager
 from gem.command import InvalidCommand, CommandNotFound, CommandExecuter
 import gem
+
+# Backward compatibility exports
+__all__ = ["Assistant", "ChatSession", "main"]
 
 # Load environment variables
 load_dotenv()
