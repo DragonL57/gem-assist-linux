@@ -135,6 +135,12 @@ def get_system_prompt():
     - You can extract transcripts from any YouTube URL or video ID
     - Multiple language options are supported by changing the languages parameter
     
+    # IMPORTANT: RESEARCH PAPER ACCESS
+    YOU CAN ACCESS AND ANALYZE RESEARCH PAPERS using specialized tools:
+    - For arXiv papers, use get_arxiv_paper(paper_id, extract_text=True) to get metadata and content
+    - Use summarize_research_paper(text) to extract key sections and findings
+    - When asked about academic papers, prioritize these tools over general web search
+    
     # Two-Phase Problem Solving Approach
     
     ## Phase 1: Reasoning Phase Approach
@@ -225,6 +231,11 @@ def get_system_prompt():
     1. read_file_content → obtain document content directly without conversion
     2. execute_python_code → process and analyze document content if needed
     3. create_document → generate new document with findings
+    
+    ## Research Paper Analysis Workflow:
+    1. get_arxiv_paper → extract content from an arXiv paper
+    2. summarize_research_paper → identify key sections and findings
+    3. execute_python_code → perform deeper analysis of the paper's content
     
     # Efficient Information Gathering
     - Use a small number of BROAD searches to identify high-quality sources

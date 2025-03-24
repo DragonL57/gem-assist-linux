@@ -46,6 +46,11 @@ from .code_execution import (
     execute_python_code, analyze_pandas_dataframe
 )
 
+# Import the research tools
+from .research import (
+    get_arxiv_paper, summarize_research_paper
+)
+
 # Export tools list for the assistant to use
 TOOLS = [
     # File system tools
@@ -79,7 +84,10 @@ TOOLS = [
     scrape_with_pagination, scrape_dynamic_content,
     
     # Code execution tools
-    execute_python_code, analyze_pandas_dataframe
+    execute_python_code, analyze_pandas_dataframe,
+    
+    # Research tools
+    get_arxiv_paper, summarize_research_paper
 ]
 
 __all__ = [
@@ -94,5 +102,6 @@ __all__ = [
     'reddit_search', 'get_reddit_post', 'reddit_submission_comments',
     'convert_document', 'read_excel_file', 'read_excel_structure', 'read_pdf_text', 'convert_excel_to_format', 
     'extract_structured_data', 'extract_tables_to_dataframes', 'scrape_with_pagination', 'scrape_dynamic_content', 
-    'execute_python_code', 'analyze_pandas_dataframe', 'read_file_content'
+    'execute_python_code', 'analyze_pandas_dataframe', 'read_file_content',
+    'get_arxiv_paper', 'summarize_research_paper'
 ]
