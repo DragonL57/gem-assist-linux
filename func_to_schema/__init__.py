@@ -43,31 +43,34 @@ def function_to_json_schema(func: Callable) -> Dict[str, Any]:
             continue
         
         # Get parameter annotation if available, otherwise use Any
-        # Adding a fallback in case type_hints is not accurate
+        has_annotation = True  # Track if we have a real annotation or using Any as fallback
         if param_name in type_hints:
             type_annotation = type_hints[param_name]
         elif param.annotation != inspect.Parameter.empty:
             type_annotation = param.annotation
         else:
             type_annotation = Any
+            has_annotation = False  # Mark that we're using Any as a fallback
 
         # Check if parameter is required
         if param.default == inspect.Parameter.empty:
             required_params.append(param_name)
         
         # Convert Python type to JSON schema type
-        param_schema = type_hint_to_json_schema(type_annotation)
+        param_schema = type_hint_to_json_schema(type_annotation) if has_annotation else {}
         
         # Add documentation if available
         if param_name in param_descriptions and param_descriptions[param_name]:
             param_schema["description"] = param_descriptions[param_name].strip()
         
-        # Ensure type is always specified (explicit empty dict case)
-        if not param_schema:
-            param_schema = {"type": "object"}
-        elif "type" not in param_schema and not any(x in param_schema for x in ["oneOf", "anyOf", "allOf"]):
-            # Default to object if no type is specified and no composition keywords
-            param_schema["type"] = "object"
+        # Only add default type for explicitly annotated parameters
+        if has_annotation:
+            # Ensure type is always specified (explicit empty dict case)
+            if not param_schema:
+                param_schema = {"type": "object"}
+            elif "type" not in param_schema and not any(x in param_schema for x in ["oneOf", "anyOf", "allOf"]):
+                # Default to object if no type is specified and no composition keywords
+                param_schema["type"] = "object"
         
         parameters[param_name] = param_schema
 
@@ -107,12 +110,13 @@ def _fix_empty_object_properties(schema):
     # Process all properties recursively
     if "properties" in schema and isinstance(schema["properties"], dict):
         for prop_name, prop_schema in schema["properties"].items():
+            # Skip completely empty dictionaries - we want to keep those as {}
+            if prop_schema == {}:
+                continue
+                
             if isinstance(prop_schema, dict):
-                # If property has no type or composition keywords, add a default type
-                if not prop_schema or (
-                    "type" not in prop_schema and 
-                    not any(key in prop_schema for key in ["oneOf", "anyOf", "allOf"])
-                ):
+                # Only add default type if there's content but no type
+                if prop_schema and "type" not in prop_schema and not any(key in prop_schema for key in ["oneOf", "anyOf", "allOf"]):
                     prop_schema["type"] = "object"
                 
                 # Recursively fix nested properties

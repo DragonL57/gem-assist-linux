@@ -16,7 +16,7 @@ from .core import tool_message_print, tool_report_print
 # Check for optional dependencies
 PYPDF_AVAILABLE = False
 try:
-    import PyPDF2
+    import pypdf
     PYPDF_AVAILABLE = True
 except ImportError:
     pass

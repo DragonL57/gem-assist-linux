@@ -856,25 +856,42 @@ def get_youtube_transcript(video_url_or_id: str,
         # Parse language preferences
         language_list = [lang.strip() for lang in languages.split(",")]
         
-        # Get transcript directly - simpler approach
+        # Get transcript using new recommended API methods
         try:
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=language_list)
-            used_language = language_list[0] if language_list else "en"  # Default to first requested language
-        except NoTranscriptFound:
-            # Try getting available transcripts and translating
-            try:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                # Get any transcript and translate to first preferred language
-                transcript = next(transcript_list)
-                if language_list:
-                    transcript = transcript.translate(language_list[0])
-                    used_language = f"{transcript.language_code} (translated to {language_list[0]})"
-                else:
+            # Use list() method instead of list_transcripts()
+            transcript_list = YouTubeTranscriptApi.list(video_id)
+            
+            # Try to get the transcript in the preferred language
+            if language_list:
+                # Try each language in order of preference
+                transcript = None
+                for lang in language_list:
+                    try:
+                        transcript = transcript_list.find_transcript([lang])
+                        used_language = lang
+                        break
+                    except:
+                        continue
+                
+                # If none of the preferred languages worked, try the first available transcript
+                if not transcript:
+                    transcript = transcript_list[0]
                     used_language = transcript.language_code
-                transcript_data = transcript.fetch()
-            except Exception as e:
-                tool_report_print("Error:", f"No transcript found: {str(e)}", is_error=True)
-                return {"error": f"No transcript found: {str(e)}"}
+                    
+                    # Try translating if needed
+                    if language_list[0] != used_language and transcript.is_translatable:
+                        transcript = transcript.translate(language_list[0])
+                        used_language = f"{transcript.language_code} (translated to {language_list[0]})"
+            else:
+                # No language preference, use default transcript
+                transcript = transcript_list[0]
+                used_language = transcript.language_code
+            
+            # Use fetch() method instead of get_transcript() to get transcript data
+            transcript_data = transcript.fetch()
+        except Exception as e:
+            tool_report_print("Error:", f"Failed to retrieve transcript: {str(e)}", is_error=True)
+            return {"error": f"Failed to retrieve transcript: {str(e)}"}
         
         # Format timestamps if requested
         if format_timestamps:

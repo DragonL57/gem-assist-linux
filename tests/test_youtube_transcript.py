@@ -20,9 +20,8 @@ def test_youtube_transcript():
     print(f"Testing transcript extraction for video ID: {video_id}")
     result = get_youtube_transcript(video_id)
     
-    if "error" in result:
-        print(f"Error: {result['error']}")
-        return False
+    # Use assert statements instead of returning a value
+    assert "error" not in result, f"Error: {result.get('error', 'Unknown error')}"
     
     print(f"Success! Retrieved transcript with {result['segment_count']} segments")
     print(f"Video title: {result['video_title']}")
@@ -33,7 +32,7 @@ def test_youtube_transcript():
     for segment in result['transcript_segments'][:3]:
         print(f"{segment.get('formatted_timestamp', segment.get('start'))}: {segment['text']}")
     
-    return True
+    # No return statement needed
 
 if __name__ == "__main__":
     test_youtube_transcript()

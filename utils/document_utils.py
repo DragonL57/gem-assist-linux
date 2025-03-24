@@ -20,7 +20,7 @@ except ImportError:
 
 # For PDF handling
 try:
-    import PyPDF2
+    import pypdf
     PYPDF2_AVAILABLE = True
 except ImportError:
     pass

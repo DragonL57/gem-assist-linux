@@ -30,7 +30,8 @@ class TestResearchTools(unittest.TestCase):
         print(f"Authors: {result['authors']}")
         print(f"Abstract preview: {result['abstract'][:100]}...")
         
-        return True
+        # Remove the return True statement to fix the deprecation warning
+        # The test will pass automatically if no assertions fail
 
     def test_paper_summary(self):
         """Test paper summarization with a sample text."""
@@ -60,7 +61,8 @@ class TestResearchTools(unittest.TestCase):
         print(f"Identified sections: {', '.join(result['identified_sections'])}")
         print(f"Found {len(result['key_findings'])} key findings")
         
-        return True
+        # Remove the return True statement to fix the deprecation warning
+        # The test will pass automatically if no assertions fail
 
 if __name__ == "__main__":
     unittest.main()
