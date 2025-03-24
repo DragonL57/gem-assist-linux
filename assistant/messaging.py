@@ -51,17 +51,6 @@ class MessageProcessor:
         response_message = response.choices[0].message
         tool_calls = response_message.tool_calls
 
-        # Add automatic prompt for memory tools when personal information is detected
-        if not tool_calls and response_message.content:
-            # Check for personal information in user's last message
-            if len(self.assistant.messages) >= 2 and self.assistant.messages[-1]["role"] == "user":
-                last_user_msg = self.assistant.messages[-1]["content"].lower()
-                memory_triggers = ["my name is", "i am", "i like", "i love", "i hate", "i live in", "i work", "you can call me"]
-                
-                if any(trigger in last_user_msg for trigger in memory_triggers):
-                    self.assistant.console.print("[bold yellow]⚠️ Personal information detected but no memory update performed![/]")
-                    self.assistant.console.print("[yellow]Consider using memory tools (update_memory, analyze_user_input) to remember user details.[/]")
-
         # Display model reasoning in debug mode
         self.assistant.display.extract_and_display_reasoning(response)
 
@@ -111,7 +100,3 @@ class MessageProcessor:
         if response_message.content and print_response:
             self.assistant.console.print("[dim italic]Model thinking: " + response_message.content.strip() + "[/]")
             self.assistant.console.print()  # Add space for readability
-            
-            # Auto-detect personal information to prompt memory updates
-            if any(trigger in response_message.content.lower() for trigger in ["name is", "you can call me", "my name", "introduce myself"]):
-                self.assistant.console.print("[bold yellow]💡 Personal information detected - check memory tools![/]")

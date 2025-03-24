@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "A more modular structure for assistant.py"
+git commit -m "Improve codebase structure, remove memory tool, remove Flask UI"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)
