@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "updated reame.md"
+git commit -m "updated readme.md"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

@@ -1,11 +1,27 @@
-# Gem-assist: Terminal-based AI Assistant
+# Gem-assist-linux: Enhanced Terminal-based AI Assistant
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+"/>
   <img src="https://img.shields.io/badge/License-BSD--3-green.svg" alt="BSD-3 License"/>
+  <img src="https://img.shields.io/badge/Platform-Linux-orange.svg" alt="Linux Platform"/>
 </p>
 
-Gem-assist is a powerful terminal-based AI assistant powered by Google's Gemini models. It employs a unique two-phase reasoning architecture along with a comprehensive toolset to provide intelligent assistance directly in your terminal.
+> **Important Note**: This is a significantly improved Linux fork of [Fus3n's gem-assist](https://github.com/Fus3n/gem-assist) with numerous enhancements, bug fixes, and new features to make it fully functional on Linux systems.
+
+Gem-assist-linux is a powerful terminal-based AI assistant powered by Google's Gemini models. It employs a unique two-phase reasoning architecture along with an expanded toolset to provide intelligent assistance directly in your terminal.
+
+## 🔄 Fork Improvements
+
+This Linux fork provides substantial improvements over the original project:
+
+- **Two-Phase Reasoning Architecture**: Added a completely new reasoning-before-execution approach
+- **Enhanced Terminal UI**: Improved console interaction and display formatting
+- **Extended Tool Set**: Added numerous new tools including arXiv research paper integration
+- **YouTube Transcript Analysis**: Added capability to extract and analyze video content
+- **Improved Web Content Extraction**: Better handling of complex websites and content extraction
+- **Research Tools**: New tools for scholarly research and academic paper analysis
+- **Linux Compatibility**: Fixed various issues that prevented proper functionality on Linux systems
+- **Comprehensive System Information**: Enhanced system information collection and reporting
 
 ## 🌟 Key Features
 
@@ -19,7 +35,7 @@ Gem-assist is a powerful terminal-based AI assistant powered by Google's Gemini 
 
 ## 🏗️ Architecture
 
-Gem-assist uses a deliberate two-phase approach to solve problems:
+Gem-assist-linux uses a deliberate two-phase approach to solve problems:
 
 1. **Reasoning Phase**: The assistant first analyzes the query and plans an approach
 2. **Execution Phase**: The assistant follows the reasoning plan to execute tools and provide a final response
@@ -87,8 +103,8 @@ graph TB
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/Fus3n/gem-assist
-   cd gem-assist
+   git clone https://github.com/DragonL57/gem-assist-linux.git
+   cd gem-assist-linux
    ```
 
 2. **Install core dependencies**:
@@ -158,7 +174,7 @@ Type `/help` to see available commands. Some useful ones include:
 
 ## 🛠️ Tool Categories
 
-Gem-assist includes tools across several categories:
+Gem-assist-linux includes tools across several categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
@@ -203,7 +219,7 @@ uv run pytest tests/
 
 ## 🔍 Workflows
 
-Gem-assist is designed for various workflows:
+Gem-assist-linux is designed for various workflows:
 
 ### Research Workflow
 1. **Web search**: Find high-quality sources
@@ -234,7 +250,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📝 License
 
-This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
+This project is a fork of the original [gem-assist](https://github.com/Fus3n/gem-assist) by Fus3n, with significant modifications and improvements by DragonL57. It is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
 
 ## ⚠️ Known Issues
 
@@ -245,5 +261,6 @@ This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICE
 ---
 
 <p align="center">
-  <em>Gem-assist: Your intelligent terminal companion</em>
+  <em>Gem-assist-linux: Your intelligent terminal companion for Linux</em><br>
+  <small>Original project by <a href="https://github.com/Fus3n/gem-assist">Fus3n</a> | Enhanced Linux fork by <a href="https://github.com/DragonL57">DragonL57</a></small>
 </p>
