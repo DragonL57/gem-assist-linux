@@ -113,6 +113,8 @@ gem-assist comes with a set of built-in tools that you can use in your conversat
 - **Reddit:** `reddit_search`, `get_reddit_post`, `reddit_submission_comments`
 - **Utility:** `evaluate_math_expression`, `zip_archive_files`, `zip_extract_files`
 
+For mathematical calculations, use the `execute_python_code` tool which provides more flexibility and power than a dedicated math function.
+
 **And much more!**
 
 ## Testing

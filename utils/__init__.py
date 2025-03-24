@@ -20,8 +20,7 @@ from .network import (
 )
 from .system import (
     get_system_info, run_shell_command, get_current_datetime,
-    evaluate_math_expression, get_environment_variable, 
-    get_current_directory, run_parallel_commands
+    get_environment_variable, get_current_directory, run_parallel_commands
 )
 from .search import (
     reddit_search, get_reddit_post,
@@ -61,7 +60,7 @@ TOOLS = [
     
     # System tools
     get_system_info, run_shell_command, get_current_datetime,
-    evaluate_math_expression, get_environment_variable, run_parallel_commands,
+    get_environment_variable, run_parallel_commands,
     
     # Search tools
     reddit_search, get_reddit_post,
@@ -89,7 +88,7 @@ __all__ = [
     'get_file_metadata', 'write_files', 'copy_file', 'move_file', 'rename_file', 'rename_directory', 'find_files', 
     'get_website_text_content', 'http_get_request', 'http_post_request', 'open_url', 'download_file_from_url', 
     'get_youtube_transcript', 'smart_content_extraction',
-    'get_system_info', 'run_shell_command', 'get_current_datetime', 'evaluate_math_expression', 'get_current_directory', 
+    'get_system_info', 'run_shell_command', 'get_current_datetime', 'get_current_directory', 
     'zip_archive_files', 'zip_extract_files', 'get_environment_variable', 'run_parallel_commands',
     'find_tools', 'web_search',
     'reddit_search', 'get_reddit_post', 'reddit_submission_comments',

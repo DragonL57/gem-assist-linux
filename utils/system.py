@@ -10,7 +10,6 @@ import subprocess
 import threading
 from typing import Optional, Dict, Any
 import json
-import math
 from concurrent.futures import ThreadPoolExecutor
 
 from .core import tool_message_print, tool_report_print
@@ -133,55 +132,7 @@ def get_current_datetime(format_str: str = "%Y-%m-%d %H:%M:%S") -> str:
         # Fallback to default format
         return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def evaluate_math_expression(expression: str) -> str:
-    """
-    Safely evaluate a mathematical expression and return the result.
-    
-    Args:
-        expression: The mathematical expression to evaluate
-        
-    Returns:
-        The result of the evaluation as a string
-    """
-    tool_message_print("evaluate_math_expression", [("expression", expression)])
-    
-    try:
-        # Replace common mathematical functions with their math module equivalents
-        expression = expression.replace("^", "**")
-        
-        # Define a restricted set of allowed names
-        allowed_names = {
-            # Constants
-            'pi': math.pi,
-            'e': math.e,
-            'tau': math.tau,
-            'inf': math.inf,
-            'nan': math.nan,
-            
-            # Functions
-            'sin': math.sin, 'cos': math.cos, 'tan': math.tan,
-            'asin': math.asin, 'acos': math.acos, 'atan': math.atan,
-            'sqrt': math.sqrt, 'log': math.log, 'log10': math.log10,
-            'exp': math.exp, 'abs': abs, 'floor': math.floor,
-            'ceil': math.ceil, 'round': round, 'pow': math.pow
-        }
-        
-        # Evaluate the expression with the restricted namespace
-        result = eval(expression, {"__builtins__": {}}, allowed_names)
-        
-        # Format the result
-        if isinstance(result, int) or (isinstance(result, float) and result.is_integer()):
-            result_str = str(int(result))
-        else:
-            result_str = str(result)
-            
-        tool_report_print("Expression evaluated:", result_str)
-        return result_str
-        
-    except Exception as e:
-        error_message = f"Error evaluating expression: {str(e)}"
-        tool_report_print("Evaluation error:", error_message, is_error=True)
-        return error_message
+# evaluate_math_expression function removed - use execute_python_code or run_shell_command instead
 
 def get_environment_variable(key: str) -> str:
     """

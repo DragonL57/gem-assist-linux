@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "code refactor with some tools addition"
+git commit -m "Removed the evaluate_math_expression function from utils/system.py"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)
