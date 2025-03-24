@@ -1,22 +1,15 @@
 """
 Terminal UI components for gem-assist using Rich library.
-These components provide an enhanced visual experience in the terminal.
+These components provide a clean, streamlined visual experience in the terminal.
 """
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.text import Text
 from rich.markdown import Markdown
-from rich.table import Table
 from rich.progress import Progress, TextColumn, BarColumn, TaskProgressColumn, TimeElapsedColumn
-from rich.layout import Layout
-from rich.box import ROUNDED, SIMPLE, DOUBLE
 from rich.theme import Theme
-from rich.style import Style
-from rich.padding import Padding
-from rich.live import Live
 import time
-from typing import List, Dict, Any, Callable
+from typing import Dict, Any
 
 # Define the theme for consistent styling
 THEME = Theme({
@@ -36,89 +29,84 @@ THEME = Theme({
 # Create a console with our theme
 console = Console(theme=THEME)
 
-def print_header(title: str, subtitle: str = None, style: str = "blue"):
-    """Print a styled header with optional subtitle"""
-    panel = Panel(
-        Text(title, justify="center", style="bold"),
-        border_style=style,
-        padding=(1, 2),
-    )
-    console.print(panel)
+def print_header(title: str, subtitle: str = None):
+    """Print a clean header with optional subtitle"""
+    console.print()
+    console.print(f"[header]{title}[/]", justify="center", style="bold")
     
     if subtitle:
         console.print(Text(subtitle, justify="center", style="dim"))
-        
-def print_user_message(message: str):
-    """Print a user message in a styled panel"""
-    panel = Panel(
-        Text(message),
-        title="[user]You[/]",
-        border_style="magenta",
-        padding=(1, 1),
-        expand=False
-    )
-    console.print(panel)
     
+    console.print()
+
+def print_user_message(message: str):
+    """Print a user message with simple prefix"""
+    console.print()
+    # Make "You:" more prominently magenta by using a direct style application
+    console.print("[bold magenta]You:[/]")  # Explicitly use bold magenta for emphasis
+    console.print(Text(message, style="bright_white"))  # User text in bright white for better visibility
+    console.print()
+
 def print_assistant_message(message: str, assistant_name: str = "Assistant"):
     """Print an assistant message with markdown formatting"""
-    panel = Panel(
-        Markdown(message),
-        title=f"[assistant]{assistant_name}[/]",
-        border_style="green",
-        padding=(1, 2),
-        expand=False
-    )
-    console.print(panel)
+    console.print()
+    console.print(f"[assistant]{assistant_name}:[/] ", end="")
+    console.print(Markdown(message, code_theme="monokai"))
+    console.print()
 
 def print_tool_call(tool_name: str, args: Dict[str, Any] = None):
-    """Print information about a tool being called"""
-    table = Table(box=SIMPLE, show_header=False, expand=False)
-    table.add_column("", style="tool")
-    table.add_column("")
-    
-    table.add_row("Tool", f"[bold]{tool_name}[/]")
+    """Print tool call information with subtle formatting"""
+    console.print()
     if args:
-        for name, value in args.items():
-            table.add_row(name, str(value))
-    
-    panel = Panel(
-        table,
-        title="[tool]Tool Call[/]",
-        border_style="cyan",
-        padding=(0, 1),
-        expand=False
-    )
-    console.print(panel)
+        args_str = ", ".join(f"[dim]{k}=[/][highlight]{v}[/]" for k, v in args.items())
+        console.print(f"[tool]→ {tool_name}[/]({args_str})")
+    else:
+        console.print(f"[tool]→ {tool_name}[/]()")
 
 def print_tool_result(result: str, tool_name: str, success: bool = True):
-    """Print the result of a tool execution"""
+    """Print tool execution result with clear status indicator"""
     style = "success" if success else "error"
-    icon = "✓" if success else "✗"
+    prefix = "✓" if success else "✗"
     
-    panel = Panel(
-        Text(str(result)),
-        title=f"[{style}]{icon} {tool_name} Result[/]",
-        border_style="green" if success else "red",
-        padding=(1, 1),
-        expand=False
-    )
-    console.print(panel)
+    console.print(f"[{style}]{prefix} {tool_name}:[/] {result}")
+    console.print()
 
 def create_progress_display(description: str = "Processing"):
     """Create a progress bar for long-running operations"""
     progress = Progress(
-        TextColumn("[bold blue]{task.description}"),
+        TextColumn("[progress.description]{task.description}"),
         BarColumn(),
+        "[progress.percentage]{task.percentage:>3.0f}%",
+        "•",
         TaskProgressColumn(),
+        "•",
         TimeElapsedColumn(),
+        console=console
     )
-    task = progress.add_task(description, total=100)
+    
+    task = progress.add_task(f"[cyan]{description}[/]", total=100)
     return progress, task
+
+def display_info(message: str):
+    """Display an informational message"""
+    console.print(f"[info]ℹ {message}[/]")
+
+def display_warning(message: str):
+    """Display a warning message"""
+    console.print(f"[warning]⚠ {message}[/]")
+
+def display_error(message: str):
+    """Display an error message"""
+    console.print(f"[error]✗ {message}[/]")
+
+def display_success(message: str):
+    """Display a success message"""
+    console.print(f"[success]✓ {message}[/]")
 
 def demo():
     """Demo all UI components"""
     console.clear()
-    print_header("GEM ASSIST TERMINAL UI COMPONENTS", "A beautiful terminal interface")
+    print_header("GEM ASSIST TERMINAL UI COMPONENTS", "Clean terminal interface")
     
     print_user_message("Show me examples of all UI components")
     
@@ -135,13 +123,13 @@ def demo():
     print_tool_call("search_wikipedia", {"query": "Python programming language"})
     
     print_tool_result(
-        "Python is a high-level, general-purpose programming language. Its design philosophy emphasizes code readability with the use of significant indentation.",
+        "Python is a high-level programming language. Its design philosophy emphasizes code readability.",
         "search_wikipedia"
     )
     
     # Demo a progress bar
-    console.print("[info]Demonstrating progress bar...[/]")
-    progress, task = create_progress_display("Downloading sample data")
+    display_info("Demonstrating progress bar...")
+    progress, task = create_progress_display("Downloading data")
     
     with progress:
         for i in range(100):
@@ -150,8 +138,12 @@ def demo():
     
     print_tool_result("Download failed: Connection timeout", "download_file", success=False)
     
+    display_warning("This is a warning message")
+    display_error("This is an error message")
+    display_success("This is a success message")
+    
     print_assistant_message(
-        "These components work together to create a cohesive and visually appealing interface.\n\n"
+        "These components create a clean interface with good readability.\n\n"
         "```python\n"
         "def hello_world():\n"
         "    print('Hello from Rich!')\n"

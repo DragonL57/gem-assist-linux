@@ -54,7 +54,7 @@ TOOLS = [
     copy_file, move_file, rename_file, rename_directory, find_files,
     get_current_directory, read_file_content,
     
-    # Network tools
+    # Network tools - explicitly include get_youtube_transcript
     get_website_text_content, http_get_request, http_post_request,
     open_url, download_file_from_url, get_youtube_transcript, smart_content_extraction,
     

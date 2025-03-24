@@ -73,10 +73,11 @@ class ToolExecutor:
         args_display = []
         for arg_name, arg_value in function_args.items():
             display_val = self._format_arg_value(arg_value)
-            args_display.append(f"{arg_name}={display_val}")
+            args_display.append(f"[dim]{arg_name}=[/][cyan]{display_val}[/]")
         
         args_str = ", ".join(args_display)
-        self.assistant.console.print(f"[cyan]→ {function_name}({args_str})[/]")
+        self.assistant.console.print()
+        self.assistant.console.print(f"[tool]→ {function_name}({args_str})[/]")
         
     def _format_arg_value(self, value: Any) -> str:
         """Format argument values for display, truncating if needed."""
@@ -91,11 +92,11 @@ class ToolExecutor:
         if function_name in SEARCH_TOOLS:
             # For search tools, just show count of results
             result_count = self._count_search_results(result)
-            self.assistant.console.print(f"[success]✓ Completed in {execution_time:.4f}s: received {result_count} results[/]")
+            self.assistant.console.print(f"[success]✓ {function_name}:[/] Received {result_count} results in {execution_time:.2f}s")
         else:
             # For non-search tools, show condensed preview
             brief_response = self._get_condensed_preview(result)
-            self.assistant.console.print(f"[success]✓ Completed in {execution_time:.4f}s: {brief_response}[/]")
+            self.assistant.console.print(f"[success]✓ {function_name}:[/] {brief_response} [dim]({execution_time:.2f}s)[/]")
         
         self.assistant.console.print()  # Add space for readability
 

@@ -128,7 +128,16 @@ def get_system_prompt():
     - For Excel files, ALWAYS use the read_file_content() tool
     - For plain text files, use read_file()
     
+    # IMPORTANT: YOUTUBE TRANSCRIPTS
+    YOU CAN ACCESS YOUTUBE VIDEO TRANSCRIPTS using the get_youtube_transcript tool.
+    When asked about YouTube videos or to analyze video content:
+    - Use get_youtube_transcript(video_url_or_id, languages="en") to extract the transcript
+    - You can extract transcripts from any YouTube URL or video ID
+    - Multiple language options are supported by changing the languages parameter
+    
     # Two-Phase Problem Solving Approach
+    
+    ## Phase 1: Reasoning Phase Approach
     In this phase, you'll receive a user query and carefully think through:
     - What information you need to gather
     - Which tools would be most appropriate
@@ -164,14 +173,6 @@ def get_system_prompt():
     - Use extract_top_n=2 or extract_top_n=3 to get multiple sources in a single query
     - Use site_restrict parameter to target authoritative domains in a single search
     
-    # Strategic Tool Selection Guidelines
-    
-    ## For Information Gathering:
-    - Start with 1-2 BROAD searches using web_search to identify 3-5 high-quality information sources
-    - IMMEDIATELY follow up by using get_website_text_content on the most promising URLs
-    - Extract comprehensive information from each site rather than making additional searches
-    - Use site_restrict parameter to target authoritative domains in a single search rather than multiple searches
-    
     ## For Technical Information:
     - Use a SINGLE search with site_restrict parameter to focus on reliable technical domains
     - Target authoritative sites like ".edu", ".gov", "github.com", "stackoverflow.com" in one search
@@ -204,11 +205,15 @@ def get_system_prompt():
     1. ONE broad web_search with extract_content=True and extract_top_n=3 → search and extract in one step
     2. execute_python_code → analyze and synthesize findings
     
+    ## YouTube Video Analysis Workflow:
+    1. get_youtube_transcript → extract the full transcript from a YouTube video
+    2. execute_python_code → analyze the transcript content (sentiment, key points, etc.)
+    3. generate a comprehensive summary with timestamps for key moments
+    
     ## Data Workflow:
-    1. download_file_from_url → obtain data files
-    2. read_excel_file/read_pdf_text → extract structured content
-    3. execute_python_code → clean and analyze data
-    4. execute_python_code → visualize findings
+    1. read_file_content → obtain data files
+    2. execute_python_code → clean and analyze data
+    3. execute_python_code → visualize findings
     
     ## Technical Troubleshooting:
     1. ONE web_search with site_restrict → find top relevant documentation
@@ -254,22 +259,13 @@ def get_system_prompt():
     Remember: Your goal is to provide comprehensive, well-researched explanations by deeply analyzing fewer high-quality sources rather than conducting many searches.
     """
 
-# DUCKDUCKGO SEARCH
+# Settings for search tools
+MAX_DUCKDUCKGO_SEARCH_RESULTS = 4
+DUCKDUCKGO_TIMEOUT = 20
 
-# The max amount of results duckduckgo search tool can return
-MAX_DUCKDUCKGO_SEARCH_RESULTS: int = 4
-
-# Timeout
-DUCKDUCKGO_TIMEOUT: int = 20
-
-
-# REDDIT
-
-# The max amount of results reddit search tool can return, keep it low so it doesn't consume too much tokens as it feeds it raw
-MAX_REDDIT_SEARCH_RESULTS: int = 5
-
-# Maximum amount of reddit comments to load when looking into specific reddit posts, -1 for no limit
-MAX_REDDIT_POST_COMMENTS: int = -1
+# Reddit settings
+MAX_REDDIT_SEARCH_RESULTS = 5
+MAX_REDDIT_POST_COMMENTS = -1  # -1 means all comments
 
 # Prompts for the two-phase reasoning approach
 REASONING_SYSTEM_PROMPT = """
@@ -299,8 +295,7 @@ DATA PROCESSING STRATEGY:
 - For file reading: 
   * Use read_file_content for all DOCX, PDF, XLSX files
   * Use read_file for plain text files (.txt, .md, .py, etc.)
-  * When asked to read a file with extension .docx, .pdf, or .xlsx, plan to use read_file_content
-- For calculations: Explicitly plan to use evaluate_math_expression or execute_python_code
+- For calculations: Explicitly plan to use execute_python_code
 - For data transformation: Plan structured steps using Python code execution
 - For web content: Plan content extraction from 2-3 key websites rather than multiple searches
 
@@ -346,12 +341,12 @@ MANDATORY EXECUTION REQUIREMENTS:
 
 TOOL SELECTION IMPERATIVES:
 1. TIME-SENSITIVE INFORMATION: 
-   - Use filtered_search with time_period="d" or advanced_duckduckgo_search with time filter
+   - Use web_search with time_period="d" or time_period="w" for recent information
    - NEVER use outdated information from your training data
    - ALWAYS check the date/recency of your sources in results
 
 2. CALCULATIONS & DATA ANALYSIS:
-   - ALWAYS use evaluate_math_expression for ANY mathematical operation
+   - ALWAYS use execute_python_code for ANY mathematical operation
    - ALWAYS use execute_python_code for data processing and analysis
    - NEVER attempt mental calculation, even for simple operations
    - ALWAYS verify calculation results with checking code

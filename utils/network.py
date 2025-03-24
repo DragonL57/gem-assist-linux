@@ -820,8 +820,13 @@ def get_youtube_transcript(video_url_or_id: str,
     """
     Extract transcript (captions/subtitles) from a YouTube video.
     
+    This tool allows you to get the full transcript text from any YouTube video by providing
+    either the complete YouTube URL or just the video ID. Supports multiple languages and
+    various formatting options.
+    
     Args:
-        video_url_or_id: YouTube video URL or ID
+        video_url_or_id: YouTube video URL (e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ) 
+                         or just the video ID (e.g., dQw4w9WgXcQ)
         languages: Comma-separated language codes in order of preference (e.g., "en,fr,es")
         format_timestamps: Whether to format timestamps as HH:MM:SS
         combine_segments: Whether to combine all segments into a single text

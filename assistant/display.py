@@ -21,6 +21,9 @@ class AssistantDisplay:
         # Leave space for the prefix and some margin
         effective_width = console_width - 15  # Account for prefix and safety margin
         
+        # Add a blank line before response for better readability
+        self.assistant.console.print()
+        
         # Simple display without panels
         self.assistant.console.print(f"[assistant]{self.assistant.name}:[/] ", end="")
         
@@ -37,7 +40,8 @@ class AssistantDisplay:
         else:
             self.assistant.console.print("I don't have a response for that.")
         
-        print()  # Add a blank line after assistant response
+        # Add a blank line after assistant response for better readability
+        self.assistant.console.print()
         
     def show_reasoning(self, reasoning: str) -> None:
         """Display the reasoning plan with proper formatting."""
@@ -45,7 +49,9 @@ class AssistantDisplay:
         console_width = os.get_terminal_size().columns if hasattr(os, 'get_terminal_size') else 80
         effective_width = console_width - 4  # Allow for some margin
         
-        # Render the reasoning as markdown with styling
+        self.assistant.console.print()
+        
+        # Render the reasoning as markdown with subtle styling
         self.assistant.console.print(
             Markdown(reasoning, justify="left"),
             style="dim italic",
@@ -54,11 +60,15 @@ class AssistantDisplay:
             no_wrap=False
         )
         
+        self.assistant.console.print()
+        
     def display_debug_info(self, message: str) -> None:
-        """Display debug information in a dimmed format."""
+        """Display debug information with subtle styling."""
         import config as conf
         if conf.DEBUG_MODE:
+            self.assistant.console.print()
             self.assistant.console.print(message, style="debug")
+            self.assistant.console.print()
             
     def extract_and_display_reasoning(self, response: Any) -> None:
         """Extract and display model reasoning if in debug mode."""
@@ -67,5 +77,7 @@ class AssistantDisplay:
             response_message = response.choices[0].message
             if hasattr(response_message, 'content') and response_message.content:
                 reasoning = response_message.content.strip()
-                self.assistant.console.print(f"[dim cyan]Model reasoning:[/] [dim]{reasoning}[/]")
-                self.assistant.console.print()  # Add a blank line for readability
+                self.assistant.console.print()
+                self.assistant.console.print(f"[dim cyan]Model reasoning:[/]")
+                self.assistant.console.print(f"[dim]{reasoning}[/]")
+                self.assistant.console.print()

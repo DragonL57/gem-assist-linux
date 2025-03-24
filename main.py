@@ -40,11 +40,10 @@ def _run_interaction_loop(session: PromptSession, assistant: Assistant) -> None:
     
     while True:
         try:
-            # Get user input with prompt_toolkit
-            msg = session.prompt(
-                HTML('<span style="color:magenta;font-weight:bold">You:</span> '),
-                mouse_support=True
-            )
+            # Get user input with proper styling on a new line
+            console.print()
+            console.print("[bold magenta]You:[/]")  # Explicitly use bold magenta for emphasis
+            msg = session.prompt(" ")  # Add a space for slight indentation
             
             if not msg:
                 continue
