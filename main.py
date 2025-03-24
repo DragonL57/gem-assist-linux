@@ -27,16 +27,6 @@ __all__ = ["Assistant", "ChatSession", "main"]
 # Load environment variables
 load_dotenv()
 
-def _load_notes() -> str:
-    """Load saved notes if they exist."""
-    if os.path.exists("./ai-log.txt"):
-        try:
-            with open("./ai-log.txt", "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            return ""
-    return ""
-
 def _display_header(console: Console) -> None:
     """Display the application header."""
     console.print()
@@ -101,14 +91,8 @@ def main():
         enable_history_search=True,
     )
 
-    # Load notes if available
-    notes = _load_notes()
-
-    # Create the system instruction with notes
-    sys_instruct = (
-        conf.get_system_prompt()
-        + ("Here are the things previously saved on your notes:\n" + notes if notes else "")
-    ).strip()
+    # Create the system instruction
+    sys_instruct = conf.get_system_prompt().strip()
 
     # Initialize the assistant
     assistant = Assistant(

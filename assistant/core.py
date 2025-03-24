@@ -38,9 +38,9 @@ custom_theme = Theme({
 
 # Define search-related tools for concise output
 SEARCH_TOOLS = [
-    "advanced_duckduckgo_search", "google_search", 
-    "meta_search", "reddit_search", 
-    "search_wikipedia", "get_wikipedia_summary", "get_full_wikipedia_page"
+    "advanced_duckduckgo_search", 
+    "filtered_search",
+    "reddit_search"
 ]
 
 class Assistant:

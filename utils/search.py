@@ -7,7 +7,6 @@ import os
 import duckduckgo_search
 import praw
 from praw.reddit import Comment
-import wikipedia
 import thefuzz.process
 from dotenv import load_dotenv
 from colorama import Fore, Style
@@ -222,60 +221,7 @@ def reddit_submission_comments(submission_url: str) -> dict:
     print(f"{Fore.CYAN}  ├─Fetched {len(results)} reddit comments.")
     return results
 
-def get_wikipedia_summary(page: str) -> str:
-    """
-    Get a quick summery of a specific Wikipedia page, page must be a valid page name (not case sensitive)
-
-    Args:
-        page: the page name of the Wikipedia page (can be url too)
-
-    Returns: A summary of the Wikipedia page
-    """
-    tool_message_print("get_wikipedia_summary", [("page", page)])
-    try:
-        if page.startswith("https"):
-            page = page.split("wiki/")[1]
-        return wikipedia.summary(page)
-    except Exception as e:
-        tool_report_print("Error getting Wikipedia summary:", str(e), is_error=True)
-        return f"Error getting Wikipedia summary: {e}"
-
-def search_wikipedia(query: str) -> list:
-    """
-    Search Wikipedia for a given query and return a list of search results, which can be used to get summery or full page conent
-
-    Args:
-        query: the search query
-
-    Returns: A list of Wikipedia search results
-    """
-    tool_message_print("search_wikipedia", [("query", query)])
-    try:
-        return wikipedia.search(query)
-    except Exception as e:
-        tool_report_print("Error searching Wikipedia:", str(e), is_error=True)
-        return f"Error searching Wikipedia: {e}"
-
-def get_full_wikipedia_page(page: str) -> str:
-    """
-    Get the full content of a Wikipedia page, page must be a valid page name (not case sensitive)
-    Use get_wikipedia_summary if you want a quick summery, and use this to get full page of any wikipedia, do not use get_website_text_content for wikipeida
-
-    Args:
-        page: the page name of the Wikipedia page (can be url too)
-
-    Returns: A full Wikipedia page
-    """
-    tool_message_print("get_full_wikipedia_page", [("page", page)])
-    try:
-        if page.startswith("https"):
-            page = page.split("wiki/")[1]
-        page = wikipedia.page(page)
-        content = f"Title: {page.title}\nUrl:{page.url}\n{page.content}"
-        return content
-    except Exception as e:
-        tool_report_print("Error getting Wikipedia page:", str(e), is_error=True)
-        return f"Error getting Wikipedia page: {e}"
+# Wikipedia tools removed
 
 def find_tools(query: str) -> list[str]:
     """

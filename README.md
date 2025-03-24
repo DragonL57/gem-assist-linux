@@ -1,28 +1,30 @@
 # Gem-assist - A Personal Assistant In Your Terminal
 
-Gem-Assist is a Python-based personal assistant that leverages the power of Google's Gemini models(and other) to help you with various tasks. It's designed to be versatile and extensible, offering a range of tools to interact with your system and the internet. (These were written by AI)
+Gem-Assist is a Python-based personal assistant that leverages the power of LLMs like Google's Gemini models to help you with various tasks. It's designed to be versatile and extensible, offering a range of tools to interact with your system and the internet.
 
 ## Features
 
-- **Powered by LLM:** Utilizes LLM's for natural language understanding and generation.
+- **Powered by LLM:** Utilizes models like Gemini-2.0-Flash for natural language understanding and generation.
 - **Two-Phase Reasoning:** Uses a deliberate two-step process:
   1. **Reasoning Phase:** First plans approach without executing tools
   2. **Execution Phase:** Follows the reasoning plan to execute tools and provide answers
-- **In-depth Research:** Performs multiple search iterations using various tools to gather comprehensive information.
-- **Tool-based architecture:** Equipped with a variety of tools for tasks like:
-  - Web searching (DuckDuckGo, Google, Meta-search)
+- **In-depth Research:** Performs intelligent search operations optimized to avoid rate limits while gathering comprehensive information.
+- **Modular Architecture:** Organized into logical components that are easy to maintain and extend.
+- **Tool-based Architecture:** Equipped with a variety of tools for tasks like:
+  - Web searching (DuckDuckGo, filtered search)
+  - Web content extraction with intelligent rate limit handling
   - File system operations (listing directories, reading/writing files, etc.)
+  - Document processing (Excel, PDF, Word files)
   - System information retrieval
   - Reddit interaction
   - Running shell commands
+  - Code execution with Python
   - And more!
 - **Customizable:** Easily configure the assistant's behavior and extend its capabilities with new tools.
 - **Simple Chat Interface:** Interact with the assistant through a straightforward command-line chat interface.
-- **Memory:** Can save notes between conversation and remember them.
-- **Saving Conversation:** Save and load previous conversations.
-- **Commands:** Supports creating/executing (code), use `/commands` for more information.
-- **Clean UI for Search Results:** Search tools show only completion time and result count instead of verbose content.
-- **Extension:** For now you are required to write some code to extend its capabilities like adding commands to `CommandExecutor` or making new tools, there should be enough examples in `gem/builtin_commands.py` for commands and `utility.py` for tools
+- **Conversation Management:** Save and load previous conversations.
+- **Commands:** Supports executing various commands with the `/command` syntax.
+- **Intelligent Web Strategy:** Optimized to get rich information while minimizing rate limit issues.
 
 ## Getting Started
 
@@ -30,7 +32,7 @@ Gem-Assist is a Python-based personal assistant that leverages the power of Goog
 
 - Python 3.11 or higher
 - uv (for dependency management) - [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
-- Google Gemini API key (if using gemini) - [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) or check out [docs.litellm.ai/docs/providers/](https://docs.litellm.ai/docs/providers/) for more models
+- Google Gemini API key or another supported model - [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) or check out [docs.litellm.ai/docs/providers/](https://docs.litellm.ai/docs/providers/) for more models
 
 ### Installation
 
@@ -61,14 +63,13 @@ uv pip install -e ".[data-analysis,web-scraping]"
 # - web-scraping: requests, beautifulsoup4
 # - dynamic-web: selenium
 # - documents: PyPDF2, python-docx
-# - google-search: google-api-python-client
 ```
 
 These optional dependencies provide enhanced functionality for specific tools. The core functionality will work without them, but certain advanced features may be limited.
 
 4. Set up environment variables:
    - Create a `.env` file in the project root.
-   - Add your Google Cloud API key:
+   - Add your API key:
      ```
      GEMINI_API_KEY=YOUR_API_KEY # or any other API key with proper key name, if used
      REDDIT_ID=YOUR_REDDIT_CLIENT_ID # (Optional, for Reddit tools)
@@ -77,10 +78,10 @@ These optional dependencies provide enhanced functionality for specific tools. T
 
 ### Usage
 
-Run the `assistant.py` script to start the chat interface:
+Run the `main.py` script to start the chat interface:
 
 ```bash
-uv run assistant.py
+uv run main.py
 ```
 
 Ignore `ollama_assist_old.py`
@@ -97,20 +98,20 @@ The main configuration file is `config.py`. Here you can customize:
 
 And more
 
-**Note:** Restart the `assistant.py` script after making changes to `config.py`.
+**Note:** Restart the `main.py` script after making changes to `config.py`.
 
 ## Tools
 
-gem-assist comes with a set of built-in tools that you can use in your conversations. These tools are defined in the `utility.py` file, some of the functionalities are:
+gem-assist comes with a set of built-in tools that you can use in your conversations. These tools are defined in the various utility modules:
 
-- **Web Search:** `duckduckgo_search_tool`, `advanced_duckduckgo_search`, `google_search`, `meta_search`
+- **Web Search:** `advanced_duckduckgo_search`, `filtered_search`
 - **File System:** `list_dir`, `read_file`, `write_files`, `create_directory`, `copy_file`, `move_file`, `rename_file`, `rename_directory`, `get_file_metadata`, `get_directory_size`, `get_multiple_directory_size`
-- **System:** `get_system_info`, `run_shell_command`, `get_current_time`, `get_current_directory`, `get_drives`, `get_environment_variable`
+- **System:** `get_system_info`, `run_shell_command`, `get_current_datetime`, `get_current_directory`, `get_drives`, `get_environment_variable`
 - **Web Interaction:** `get_website_text_content`, `http_get_request`, `open_url`, `download_file_from_url`, `extract_structured_data`, `extract_tables_to_dataframes`, `scrape_with_pagination`, `scrape_dynamic_content`
 - **Document Processing:** `convert_document`, `read_excel_file`, `read_excel_structure`, `read_pdf_text`, `convert_excel_to_format`
 - **Code Execution:** `execute_python_code`, `analyze_pandas_dataframe`
 - **Reddit:** `reddit_search`, `get_reddit_post`, `reddit_submission_comments`
-- **Utility:** `evaluate_math_expression`, `zip_archive_files`, `zip_extract_files`, `write_note`, `read_note`
+- **Utility:** `evaluate_math_expression`, `zip_archive_files`, `zip_extract_files`
 
 **And much more!**
 
