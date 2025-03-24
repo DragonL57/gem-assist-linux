@@ -6,6 +6,12 @@ import time
 import inspect
 from typing import Any, Dict, List, Callable
 
+# Update search tool definitions to use plugin system
+from plugins import get_registry
+
+# Define search-related tools for concise output - update this if you're still using it
+SEARCH_TOOLS = ["web_search", "reddit_search"]
+
 class ToolExecutor:
     """Handles tool execution for the assistant."""
     

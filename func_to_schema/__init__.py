@@ -16,8 +16,19 @@ from pydantic import BaseModel
 import warnings
 import re
 
-def function_to_json_schema(func: Callable) -> Dict[str, Any]:
-    """Convert a Python function to a JSON schema compatible with OpenAI's function calling API."""
+from .vertex_compatibility import clean_schema_for_vertex
+
+def function_to_json_schema(func: Callable, vertex_compatible: bool = True) -> Dict[str, Any]:
+    """
+    Convert a Python function to a JSON schema compatible with OpenAI's function calling API.
+    
+    Args:
+        func: The function to convert
+        vertex_compatible: Whether to make the schema compatible with Vertex AI (default: True)
+        
+    Returns:
+        A JSON schema representation of the function
+    """
     sig = inspect.signature(func)
     
     # Get function name
@@ -96,6 +107,10 @@ def function_to_json_schema(func: Callable) -> Dict[str, Any]:
     # Fix any empty object properties
     _fix_empty_object_properties(json_schema["function"].get("parameters", {}))
     
+    # Optionally clean the schema for Vertex AI compatibility
+    if vertex_compatible:
+        json_schema = clean_schema_for_vertex(json_schema)
+        
     return json_schema
 
 def _fix_empty_object_properties(schema):
@@ -205,11 +220,18 @@ def type_hint_to_json_schema(type_hint) -> Dict[str, Any]:
         if key_type is not str:
             warnings.warn(f"Dict keys should be strings for JSON serialization, got {key_type}", UserWarning)
         
-        properties = {}
-        if val_type is not Any:
-            properties["additionalProperties"] = type_hint_to_json_schema(val_type)
+        # For Vertex AI compatibility, we need to provide properties
+        result = {"type": "object"}
         
-        return {"type": "object", **properties}
+        # Add properties with a default "_any" key for Vertex AI compatibility
+        result["properties"] = {"_any": {"type": "string", "description": "Any dictionary property"}}
+        
+        # Add additionalProperties if we have value type info
+        if val_type is not Any:
+            val_schema = type_hint_to_json_schema(val_type)
+            result["additionalProperties"] = val_schema
+        
+        return result
     
     # Handle tuple
     elif get_origin(type_hint) is tuple:

@@ -13,6 +13,7 @@ from rich.theme import Theme
 import litellm
 
 from func_to_schema import function_to_json_schema
+from plugins import get_registry, discover_plugins
 
 from assistant.display import AssistantDisplay
 from assistant.messaging import MessageProcessor
@@ -48,16 +49,35 @@ class Assistant:
         self,
         model: str,
         name: str = "Assistant",
-        tools: List[Callable] = [],
+        tools: List[Callable] = None,
         system_instruction: str = "",
+        discover_plugins_on_start: bool = True,
     ) -> None:
         """Initialize the assistant with model and tools."""
         self.model = model
         self.name = name
         self.system_instruction = system_instruction
         self.messages = []
+        
+        # Discover and register plugins if requested
+        if discover_plugins_on_start:
+            discover_plugins()
+            
+        # Get tools from registry and combine with explicitly provided tools
+        registry = get_registry()
+        registry_tools = list(registry.get_tools().values())
+        
+        if tools is None:
+            tools = registry_tools
+        else:
+            # Combine explicit tools with registered tools, avoiding duplicates
+            registry_tool_names = {t.__name__ for t in registry_tools}
+            explicit_tools = [t for t in tools if t.__name__ not in registry_tool_names]
+            tools = registry_tools + explicit_tools
+        
         self.available_functions = {func.__name__: func for func in tools}
-        self.tools = list(map(function_to_json_schema, tools))
+        # Ensure vertex compatibility for all tools
+        self.tools = [function_to_json_schema(func, vertex_compatible=True) for func in tools]
         self.console = Console(theme=CUSTOM_THEME)
         self.last_reasoning = None
 
