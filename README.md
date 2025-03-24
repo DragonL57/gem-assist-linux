@@ -1,152 +1,249 @@
-# Gem-assist - A Personal Assistant In Your Terminal
+# Gem-assist: Terminal-based AI Assistant
 
-Gem-Assist is a Python-based personal assistant that leverages the power of LLMs like Google's Gemini models to help you with various tasks. It's designed to be versatile and extensible, offering a range of tools to interact with your system and the internet.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+"/>
+  <img src="https://img.shields.io/badge/License-BSD--3-green.svg" alt="BSD-3 License"/>
+</p>
 
-## Features
+Gem-assist is a powerful terminal-based AI assistant powered by Google's Gemini models. It employs a unique two-phase reasoning architecture along with a comprehensive toolset to provide intelligent assistance directly in your terminal.
 
-- **Powered by LLM:** Utilizes models like Gemini-2.0-Flash for natural language understanding and generation.
-- **Two-Phase Reasoning:** Uses a deliberate two-step process:
-  1. **Reasoning Phase:** First plans approach without executing tools
-  2. **Execution Phase:** Follows the reasoning plan to execute tools and provide answers
-- **In-depth Research:** Performs intelligent search operations optimized to avoid rate limits while gathering comprehensive information.
-- **Modular Architecture:** Organized into logical components that are easy to maintain and extend.
-- **Tool-based Architecture:** Equipped with a variety of tools for tasks like:
-  - Web searching (DuckDuckGo, filtered search)
-  - Web content extraction with intelligent rate limit handling
-  - File system operations (listing directories, reading/writing files, etc.)
-  - Document processing (Excel, PDF, Word files)
-  - System information retrieval
-  - Reddit interaction
-  - Running shell commands
-  - Code execution with Python
-  - And more!
-- **Customizable:** Easily configure the assistant's behavior and extend its capabilities with new tools.
-- **Simple Chat Interface:** Interact with the assistant through a straightforward command-line chat interface.
-- **Conversation Management:** Save and load previous conversations.
-- **Commands:** Supports executing various commands with the `/command` syntax.
-- **Intelligent Web Strategy:** Optimized to get rich information while minimizing rate limit issues.
+## 🌟 Key Features
 
-## Getting Started
+- **Two-Phase Reasoning**: Planning before execution ensures thoughtful and strategic responses
+- **Rich Tool Ecosystem**: 30+ specialized tools for file operations, web searches, code execution, and more
+- **Research Capabilities**: Direct access to academic papers through arXiv integration
+- **YouTube Analysis**: Extract and analyze video transcripts
+- **Efficient Web Strategy**: Smart search tools to avoid rate limits while maximizing information quality
+- **Local File Access**: Read and manipulate various file types including PDFs, Word documents, and Excel files
+- **Customizable**: Easy configuration through a central config.py file
+
+## 🏗️ Architecture
+
+Gem-assist uses a deliberate two-phase approach to solve problems:
+
+1. **Reasoning Phase**: The assistant first analyzes the query and plans an approach
+2. **Execution Phase**: The assistant follows the reasoning plan to execute tools and provide a final response
+
+> **Note**: The architecture diagrams below will render properly on GitHub and GitLab. In other environments, you'll see the diagram code instead.
+
+```mermaid
+flowchart TD
+    User[User Input] --> |Query| ReasoningPhase
+    
+    subgraph "Phase 1: Reasoning"
+        ReasoningPhase[Reasoning Engine] --> |Plans approach| ReasoningPlan[Reasoning Plan]
+    end
+    
+    ReasoningPlan --> |Guides execution| ExecutionPhase
+    
+    subgraph "Phase 2: Execution"
+        ExecutionPhase[Execution Engine] --> |Uses| ToolSelection[Tool Selection]
+        ToolSelection --> |Calls| ToolExecution[Tool Execution]
+        ToolExecution --> |Returns| ToolResults[Results Collection]
+        ToolResults --> |Synthesizes| FinalResponse[Final Response]
+    end
+    
+    FinalResponse --> User
+```
+
+### Core Components
+
+The assistant consists of several interconnected components that work together:
+
+- **Assistant**: Central coordinator that manages the conversation
+- **MessageProcessor**: Handles conversation flow and message processing
+- **ReasoningEngine**: Plans approach without executing tools
+- **ToolExecutor**: Executes tools according to the reasoning plan
+- **SessionManager**: Manages conversation history and persistence
+- **Tool Collection**: Library of 30+ specialized tools across categories
+
+```mermaid
+graph TB
+    Assistant[Assistant] --> Display[AssistantDisplay]
+    Assistant --> Messaging[MessageProcessor]
+    Assistant --> Reasoning[ReasoningEngine]
+    Assistant --> ToolExec[ToolExecutor]
+    Assistant --> Session[SessionManager]
+    Assistant --> Converter[TypeConverter]
+    
+    Messaging --Uses--> Reasoning
+    ToolExec --Executes--> Tools[(Tool Collection)]
+    Tools --Categories--> Files[File Tools]
+    Tools --Categories--> Web[Web Tools]
+    Tools --Categories--> Search[Search Tools]
+    Tools --Categories--> Code[Code Execution]
+    Tools --Categories--> Research[Research Tools]
+```
+
+## 🚀 Getting Started
 
 ### Prerequisites
 
 - Python 3.11 or higher
-- uv (for dependency management) - [https://docs.astral.sh/uv/getting-started/installation/](https://docs.astral.sh/uv/getting-started/installation/)
-- Google Gemini API key or another supported model - [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey) or check out [docs.litellm.ai/docs/providers/](https://docs.litellm.ai/docs/providers/) for more models
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) (for dependency management)
+- Google Gemini API key ([get one here](https://aistudio.google.com/apikey))
 
 ### Installation
 
-1. Clone the repository:
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Fus3n/gem-assist
+   cd gem-assist
+   ```
 
-```bash
-git clone https://github.com/Fus3n/gem-assist
-cd gem-assist
-```
+2. **Install core dependencies**:
+   ```bash
+   uv pip install -e .
+   ```
 
-2. Install core dependencies using uv:
+3. **Install optional dependencies** (based on your needs):
+   ```bash
+   # For all optional dependencies
+   uv pip install -e ".[all]"
+   
+   # Or install specific feature groups
+   uv pip install -e ".[data-analysis,web-scraping,dynamic-web,documents]"
+   ```
 
-```bash
-uv pip install -e .
-```
+4. **Configure API keys**:
+   Create a `.env` file in the project root with your API keys:
+   ```
+   GEMINI_API_KEY=your_api_key_here
+   REDDIT_ID=your_reddit_client_id  # Optional
+   REDDIT_SECRET=your_reddit_client_secret  # Optional
+   ```
 
-3. Install optional dependencies based on your needs:
+## 📋 Usage
 
-```bash
-# For all optional dependencies
-uv pip install -e ".[all]"
-
-# Or install specific feature groups
-uv pip install -e ".[data-analysis,web-scraping]"
-
-# Available feature groups:
-# - data-analysis: pandas, numpy, matplotlib
-# - web-scraping: requests, beautifulsoup4
-# - dynamic-web: selenium
-# - documents: PyPDF2, python-docx
-```
-
-These optional dependencies provide enhanced functionality for specific tools. The core functionality will work without them, but certain advanced features may be limited.
-
-4. Set up environment variables:
-   - Create a `.env` file in the project root.
-   - Add your API key:
-     ```
-     GEMINI_API_KEY=YOUR_API_KEY # or any other API key with proper key name, if used
-     REDDIT_ID=YOUR_REDDIT_CLIENT_ID # (Optional, for Reddit tools)
-     REDDIT_SECRET=YOUR_REDDIT_CLIENT_SECRET # (Optional, for Reddit tools)
-     ```
-
-### Usage
-
-Run the `main.py` script to start the chat interface:
+Run the main script to start the chat interface:
 
 ```bash
 uv run main.py
 ```
 
-Ignore `ollama_assist_old.py`
+You'll see a chat interface where you can interact with the assistant. The conversation follows this workflow:
 
-You can then interact with Gemini by typing commands in the chat. Type `exit`, `quit`, or `bye` to close the chat.
+1. You ask a question
+2. The assistant develops an approach plan (Reasoning Phase)
+3. The assistant displays its reasoning
+4. The assistant executes relevant tools (Execution Phase)
+5. The assistant synthesizes all information and provides a comprehensive response
 
-## Configuration
+```mermaid
+sequenceDiagram
+    participant User
+    participant Assistant
+    participant Tools
+    
+    User->>Assistant: Ask a question
+    Note over Assistant: Reasoning Phase
+    Assistant->>Assistant: Develop approach plan
+    Assistant-->>User: Display reasoning
+    Note over Assistant: Execution Phase
+    Assistant->>Tools: Execute relevant tools
+    Tools-->>Assistant: Return results
+    Assistant->>Assistant: Synthesize final answer
+    Assistant-->>User: Provide comprehensive response
+```
 
-The main configuration file is `config.py`. Here you can customize:
+### Commands
 
-- **`MODEL`**: Choose the Gemini model to use (e.g., `"gemini/gemini-2.0-flash"`, `"gemini/gemini-2.0-pro-exp-02-05"`) for more models checkout: [docs.litellm.ai/docs/providers/](https://docs.litellm.ai/docs/providers/), for local models its recommended to not run really small models.
-- **`NAME`**: Set the name of your assistant.
-- **`SYSTEM_PROMPT`**: Modify the system prompt to adjust the assistant's personality and instructions.
+Type `/help` to see available commands. Some useful ones include:
 
-And more
+- `/exit` or `/quit` - Exit the chat
+- `/save [name]` - Save the current session
+- `/load [name]` - Load a saved session
+- `/reset` - Reset the current session
+- `/reasoning` - Show the assistant's reasoning for the last response
 
-**Note:** Restart the `main.py` script after making changes to `config.py`.
+## 🛠️ Tool Categories
 
-## Tools
+Gem-assist includes tools across several categories:
 
-gem-assist comes with a set of built-in tools that you can use in your conversations. These tools are defined in the various utility modules:
+| Category | Tools | Description |
+|----------|-------|-------------|
+| **File System** | `list_dir`, `read_file_content`, `write_files`, etc. | Interact with local files and directories |
+| **Web** | `get_website_text_content`, `smart_content_extraction`, `get_youtube_transcript` | Extract and process web content |
+| **Search** | `web_search`, `reddit_search` | Find information online |
+| **Document Processing** | `read_excel_file`, `read_pdf_text`, `convert_document` | Work with various document formats |
+| **Code Execution** | `execute_python_code`, `analyze_pandas_dataframe` | Run Python code and analyze data |
+| **Research** | `get_arxiv_paper`, `summarize_research_paper` | Access and analyze academic papers |
+| **System** | `get_system_info`, `run_shell_command` | Interact with your operating system |
 
-- **Web Search:** `web_search` (with integrated content extraction)
-- **File System:** `list_dir`, `write_files`, `create_directory`, `copy_file`, `move_file`, `rename_file`, `rename_directory`, `get_file_metadata`, `get_multiple_directory_size`
-- **System:** `get_system_info`, `run_shell_command`, `get_current_datetime`, `get_current_directory`, `get_drives`, `get_environment_variable`, `run_parallel_commands` 
-- **Web Interaction:** `get_website_text_content` (enhanced with links/images extraction), `http_get_request`, `open_url`, `download_file_from_url`, `extract_structured_data`, `extract_tables_to_dataframes`, `scrape_with_pagination`, `scrape_dynamic_content`
-- **Document Processing:** `read_file_content`, `convert_document`, `read_excel_file`, `read_excel_structure`, `read_pdf_text`, `convert_excel_to_format`
-- **Code Execution:** `execute_python_code`, `analyze_pandas_dataframe`
-- **Reddit:** `reddit_search`, `get_reddit_post`, `reddit_submission_comments`
-- **Utility:** `evaluate_math_expression`, `zip_archive_files`, `zip_extract_files`
+## ⚙️ Configuration
 
-For mathematical calculations, use the `execute_python_code` tool which provides more flexibility and power than a dedicated math function.
+The main configuration file is `config.py`. Here are some key settings you can customize:
 
-**And much more!**
+```python
+# Model selection
+MODEL = "gemini/gemini-2.0-flash"  # or other supported models
 
-## Testing
-To run tests, use:
+# Assistant name
+NAME = "Gemini"  # Customize your assistant's name
+
+# Model parameters
+TEMPERATURE = 0.25
+TOP_P = None
+MAX_TOKENS = 8192  # Maximum supported by your model
+SEED = None
+
+# Debug mode (shows model reasoning)
+DEBUG_MODE = False  # Set to True to see model reasoning
+```
+
+**Note**: Restart the application after making changes to `config.py`.
+
+## 🧪 Testing
+
+To run tests:
+
 ```bash
 uv run pytest tests/
 ```
 
-## Dependencies
+## 🔍 Workflows
 
-The project dependencies are managed by UV and listed in `pyproject.toml`. Key dependencies include:
+Gem-assist is designed for various workflows:
 
-- `google-genai`
-- `ollama`
-- `duckduckgo-search`
-- `praw`
-- `rich`
-- `python-dotenv`
+### Research Workflow
+1. **Web search**: Find high-quality sources
+2. **Extract content**: Get detailed information from sources
+3. **Execute Python code**: Analyze and synthesize findings
+4. **Final answer**: Provide comprehensive response
 
-## Contributing
+### Paper Analysis Workflow
+1. **Get arXiv paper**: Extract paper content
+2. **Summarize research paper**: Identify key sections and findings
+3. **Execute Python code**: Process and analyze
+4. **Final answer**: Provide insights on the research
 
-All contributions are welcome! Please fork the repository and create a pull request.
+### YouTube Analysis Workflow
+1. **Get YouTube transcript**: Extract video content
+2. **Execute Python code**: Analyze transcript
+3. **Final answer**: Generate summary with key timestamps
 
-## Known Issues
+## 🤝 Contributing
 
-- **Web Interaction:** Web interaction tools may not work as expected due to rate limits and other issues.
-- **File download tool:** Might not show progress or filename(if not explicitly provided) correctly if file download endpoint is dynamic
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+1. Fork the repository
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit your changes: `git commit -m 'Add some amazing feature'`
+4. Push to the branch: `git push origin feature/amazing-feature`
+5. Open a Pull Request
+
+## 📝 License
 
 This project is licensed under the BSD 3-Clause License - see the [LICENSE](LICENSE) file for details.
 
+## ⚠️ Known Issues
+
+- Web interaction tools may hit rate limits
+- File download tool might not show progress correctly for dynamic endpoints
+- Some features require additional dependencies
+
 ---
 
-**Disclaimer:** This is a personal project and is provided as-is. Use at your own risk.
+<p align="center">
+  <em>Gem-assist: Your intelligent terminal companion</em>
+</p>
