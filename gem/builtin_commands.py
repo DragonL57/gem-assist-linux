@@ -4,35 +4,36 @@ import os
 
 @cmd(["exit", "quit", "bye"], "Exit the chat")
 def exit_chat():    
+    print("[bold green]Goodbye![/]")
     exit()
 
 @cmd(["help", "?"], "Show help about available commands.")
 def show_help(command_name=None):
-    """
-    Args:
-        command_name: The name of the command to show help for.
-    """
     if command_name:
-        help_text = CommandExecuter.help(command_name) 
+        help_text = CommandExecuter.help(command_name)
         if help_text:
             print(help_text)
         else:
-            print(f"No help available for command: {command_name}")
+            print(f"[bold red]No help available for command '{command_name}'[/]")
     else:
-        print("No command name provided. Usage: /help <command_name>")
+        print("[bold]Available commands:[/]")
+        for name, command in sorted(CommandExecuter.get_commands().items()):
+            if hasattr(command, 'help') and name == command.aliases[0]:  # Only show first alias to avoid duplicates
+                print(f"[bold yellow]/{name}[/] - {command.help}")
 
 @cmd(["commands"], "List available commands.")
 def list_commands():
-    print("Available commands:")
-    command_dict = {}
-    for name, func in CommandExecuter.get_commands().items():
-        if func not in command_dict:
-            command_dict[func] = [name]
-        else:
-            command_dict[func].append(name)
-
-    for func, names in command_dict.items():
-        print(f"  /{', /'.join(names)}: {getattr(func, 'help', 'No help provided')}")
+    print("[bold]Available commands:[/]")
+    
+    # Group commands by their primary function
+    commands = {}
+    for name, command in CommandExecuter.get_commands().items():
+        if name == getattr(command, 'aliases', [''])[0]:  # Only add primary alias
+            commands[name] = command.help if hasattr(command, 'help') else "No help available"
+            
+    # Print them out in alphabetical order
+    for name, help_text in sorted(commands.items()):
+        print(f"[bold yellow]/{name}[/] - {help_text}")
 
 @cmd(["clear", "cls"], "Clear the screen, does not clear the chat history")
 def clear_screen():
@@ -49,23 +50,10 @@ def show_reasoning():
     # This is just a placeholder - the actual implementation is in the Assistant class
     print("Use this command in the chat interface to see the assistant's reasoning plan.")
 
-@cmd(['reset'], "Resets the chat session but keeps the terminal display")
-def reset_context():
-    """
-    Reset the conversation context while keeping the terminal display.
-    
-    This command clears all message history, but doesn't clear the terminal
-    screen, so you can still see the previous conversation. You'll be asked
-    to confirm before the reset happens.
-    """
-    # This is just a placeholder - the actual implementation is in the Assistant class
-    print("Use this command in the chat interface to reset the conversation context.")
-
 COMMANDS = [
     exit_chat,
     show_help,
     list_commands,
     clear_screen,
     show_reasoning,
-    # reset_context  # Removed to avoid alias conflict with reset_session in Assistant class
 ]
