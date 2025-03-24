@@ -10,6 +10,7 @@ import requests
 import webbrowser
 import time
 from typing import Dict, Any, Optional, Union, List, Tuple
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from pypdl import Pypdl
 from rich.console import Console
@@ -23,9 +24,13 @@ import random
 from .core import tool_message_print, tool_report_print
 from gem import seconds_to_hms, bytes_to_mb, format_size
 
+# Constants
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+DEFAULT_TIMEOUT = 15
+MAX_LINKS_EXTRACT = 50
+MAX_IMAGES_EXTRACT = 20
 
-# List of common user agents to rotate when needed
+# Common user agents to rotate for avoiding bot detection
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -34,7 +39,7 @@ USER_AGENTS = [
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 ]
 
-# Check if youtube_transcript_api is available
+# Check for optional dependencies
 YOUTUBE_TRANSCRIPT_API_AVAILABLE = False
 try:
     from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, VideoUnavailable
@@ -42,62 +47,229 @@ try:
 except ImportError:
     pass
 
-def get_website_text_content(
-    url: str, 
-    extract_mode: str = "auto",
-    extract_links: bool = False,
-    extract_images: bool = False,
-    extract_metadata: bool = True,
-    focus_element: str = None,
-    fallback_to_dynamic: bool = False,
-    timeout: int = 15
-) -> Dict[str, Any]:
-    """
-    Enhanced webpage content extraction with multiple options for controlling output.
+class WebContentExtractor:
+    """Handles extraction of web content with various strategies."""
     
-    Args:
-        url: The URL of the webpage to extract content from
-        extract_mode: Extraction method to use ("auto", "service", "direct")
-        extract_links: Whether to extract links from the page
-        extract_images: Whether to extract images from the page
-        extract_metadata: Whether to include metadata like title, description
-        focus_element: CSS selector to focus extraction on (e.g., "article", ".content")
-        fallback_to_dynamic: Whether to try dynamic extraction if initial methods fail
-        timeout: Request timeout in seconds
+    @staticmethod
+    def get_website_text_content(
+        url: str, 
+        extract_mode: str = "auto",
+        extract_links: bool = False,
+        extract_images: bool = False,
+        extract_metadata: bool = True,
+        focus_element: str = None,
+        fallback_to_dynamic: bool = False,
+        timeout: int = DEFAULT_TIMEOUT
+    ) -> Dict[str, Any]:
+        """
+        Enhanced webpage content extraction with multiple options for controlling output.
         
-    Returns:
-        Dictionary containing extracted content, metadata, and additional elements if requested
-    """
-    tool_message_print("get_website_text_content", [
-        ("url", url),
-        ("extract_mode", extract_mode),
-        ("extract_links", str(extract_links)),
-        ("extract_images", str(extract_images)),
-        ("extract_metadata", str(extract_metadata)),
-        ("focus_element", focus_element or "None"),
-        ("fallback_to_dynamic", str(fallback_to_dynamic))
-    ])
+        Args:
+            url: The URL of the webpage to extract content from
+            extract_mode: Extraction method to use ("auto", "service", "direct")
+            extract_links: Whether to extract links from the page
+            extract_images: Whether to extract images from the page
+            extract_metadata: Whether to include metadata like title, description
+            focus_element: CSS selector to focus extraction on (e.g., "article", ".content")
+            fallback_to_dynamic: Whether to try dynamic extraction if initial methods fail
+            timeout: Request timeout in seconds
+            
+        Returns:
+            Dictionary containing extracted content, metadata, and additional elements if requested
+        """
+        tool_message_print("get_website_text_content", [
+            ("url", url),
+            ("extract_mode", extract_mode),
+            ("extract_links", str(extract_links)),
+            ("extract_images", str(extract_images)),
+            ("extract_metadata", str(extract_metadata)),
+            ("focus_element", focus_element or "None"),
+            ("fallback_to_dynamic", str(fallback_to_dynamic))
+        ])
+        
+        result = None
+        errors = []
+        
+        # Step 1: Try the requested extraction method(s)
+        if extract_mode in ("auto", "service"):
+            service_result = WebContentExtractor._extract_via_service(url)
+            if not service_result.get("error"):
+                result = service_result
+            else:
+                errors.append(f"Service method: {service_result.get('error')}")
+        
+        if extract_mode in ("auto", "direct") and (result is None or result.get("error")):
+            direct_result = WebContentExtractor._extract_direct(url, focus_element, timeout)
+            if not direct_result.get("error"):
+                result = direct_result
+            else:
+                errors.append(f"Direct method: {direct_result.get('error')}")
+        
+        # Step 2: Try dynamic extraction if needed and enabled
+        if (result is None or result.get("error")) and fallback_to_dynamic:
+            dynamic_result = WebContentExtractor._try_dynamic_extraction(url, focus_element, timeout)
+            if dynamic_result and not dynamic_result.get("error"):
+                result = dynamic_result
+            else:
+                errors.append(dynamic_result.get("error", "Dynamic extraction failed"))
+        
+        # Step 3: Enhance successful result with requested data
+        if result and not result.get("error"):
+            WebContentExtractor._enhance_extraction_result(
+                result, url, extract_metadata, extract_links, extract_images, timeout
+            )
+            
+            content_length = len(result.get("content", ""))
+            tool_report_print("Content extraction successful:", 
+                            f"Extracted {content_length} characters using {result.get('extraction_method', 'unknown')} method")
+            return result
+        
+        # Step 4: Handle failure
+        return WebContentExtractor._build_error_response(url, errors, fallback_to_dynamic)
     
-    result = None
-    errors = []
+    @staticmethod
+    def _extract_via_service(url: str) -> Dict[str, Any]:
+        """Extract webpage content using the third-party service."""
+        try:
+            base = "https://md.dhr.wtf/?url="
+            headers = {'User-Agent': random.choice(USER_AGENTS)}
+            
+            response = requests.get(base+url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.content, 'lxml')
+            text_content = soup.get_text(separator='\n', strip=True)
+            
+            # Check if content seems empty or too short
+            if len(text_content) < 100:
+                return {
+                    "error": "Content extracted is suspiciously short, possibly failed extraction",
+                    "content": text_content,
+                    "extraction_method": "service",
+                    "url": url
+                }
+                
+            # Successful extraction
+            return {
+                "content": text_content,
+                "extraction_method": "service",
+                "url": url,
+                "length": len(text_content)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {"error": f"Service extraction failed: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Service extraction error: {str(e)}"}
     
-    # Step 1: Try the requested extraction method(s)
-    if extract_mode in ("auto", "service"):
-        service_result = extract_via_service(url)
-        if not service_result.get("error"):
-            result = service_result
-        else:
-            errors.append(f"Service method: {service_result.get('error')}")
+    @staticmethod
+    def _extract_direct(url: str, focus_element: str = None, timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
+        """Extract webpage content directly using requests and BeautifulSoup."""
+        try:
+            headers = {
+                'User-Agent': random.choice(USER_AGENTS),
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+            }
+            
+            response = requests.get(url, headers=headers, timeout=timeout)
+            response.raise_for_status()
+            
+            # Process content with BeautifulSoup
+            soup = BeautifulSoup(response.text, 'lxml')
+            
+            # Remove script and style elements that we don't want to extract text from
+            for element in soup(['script', 'style', 'head', 'header', 'footer', 'nav']):
+                element.decompose()
+            
+            # Find main content area
+            main_content = WebContentExtractor._locate_main_content(soup, focus_element)
+            if not main_content:
+                return {"error": "Failed to locate content in the page"}
+            
+            # Extract formatted content
+            content = WebContentExtractor._extract_formatted_content(main_content)
+            
+            # Check if content seems empty or too short
+            if len(content) < 100:
+                return {
+                    "error": "Content extracted is suspiciously short, possibly failed extraction",
+                    "content": content,
+                    "extraction_method": "direct",
+                    "url": url
+                }
+                
+            # Get page title
+            title = soup.title.string if soup.title else "No title"
+            
+            # Successful extraction
+            return {
+                "content": content,
+                "title": title,
+                "extraction_method": "direct",
+                "url": url,
+                "length": len(content)
+            }
+            
+        except requests.exceptions.RequestException as e:
+            return {"error": f"Direct extraction failed: {str(e)}"}
+        except Exception as e:
+            return {"error": f"Direct extraction error: {str(e)}"}
     
-    if extract_mode in ("auto", "direct") and (result is None or result.get("error")):
-        direct_result = extract_direct(url, focus_element=focus_element, timeout=timeout)
-        if not direct_result.get("error"):
-            result = direct_result
-        else:
-            errors.append(f"Direct method: {direct_result.get('error')}")
+    @staticmethod
+    def _locate_main_content(soup: BeautifulSoup, focus_element: str = None) -> Optional[Any]:
+        """Find the main content area of a webpage."""
+        # Use focus element if provided
+        if focus_element:
+            content = soup.select_one(focus_element)
+            if content and len(content.get_text(strip=True)) > 50:
+                return content
+        
+        # Try common content selectors
+        selectors = [
+            'article', 'main', '.content', '#content', '.post', 
+            '.article', '.entry-content', '#main', '.blog-content',
+            '.page-content', '[role="main"]'
+        ]
+        
+        for selector in selectors:
+            content = soup.select_one(selector)
+            if content and len(content.get_text(strip=True)) > 200:
+                return content
+        
+        # If no main content block found, use body
+        return soup.body
     
-    # Step 2: If extraction failed and dynamic fallback is enabled, try that
-    if (result is None or result.get("error")) and fallback_to_dynamic:
+    @staticmethod
+    def _extract_formatted_content(element: Any) -> str:
+        """Extract formatted content from HTML elements."""
+        paragraphs = []
+        for elem in element.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre', 'blockquote']):
+            text = elem.get_text(strip=True)
+            if not text:
+                continue
+                
+            if elem.name.startswith('h'):
+                # Format headings with markdown-style hashes
+                level = int(elem.name[1])
+                paragraphs.append(f"\n{'#' * level} {text}\n")
+            elif elem.name == 'li':
+                # Format list items
+                paragraphs.append(f"* {text}")
+            elif elem.name == 'pre':
+                # Format code blocks
+                paragraphs.append(f"```\n{text}\n```")
+            else:
+                paragraphs.append(text)
+        
+        return "\n\n".join(paragraphs)
+    
+    @staticmethod
+    def _try_dynamic_extraction(url: str, focus_element: str = None, timeout: int = DEFAULT_TIMEOUT) -> Dict[str, Any]:
+        """Attempt dynamic content extraction using Selenium."""
         try:
             from utils.web_scraper import scrape_dynamic_content
             tool_report_print("Static extraction failed:", "Trying dynamic content extraction")
@@ -106,21 +278,26 @@ def get_website_text_content(
                                                   selector_to_wait_for=focus_element or "body")
             
             if not dynamic_result.get("error"):
-                result = dynamic_result
-                result["extraction_method"] = "dynamic"
+                dynamic_result["extraction_method"] = "dynamic"
+                return dynamic_result
             else:
-                errors.append(f"Dynamic method: {dynamic_result.get('error')}")
+                return {"error": dynamic_result.get("error", "Dynamic extraction failed")}
         except ImportError:
-            errors.append("Dynamic extraction unavailable: selenium not installed")
+            return {"error": "Dynamic extraction unavailable: selenium not installed"}
         except Exception as e:
-            errors.append(f"Dynamic extraction failed: {str(e)}")
+            return {"error": f"Dynamic extraction failed: {str(e)}"}
     
-    # Step 3: If we have a successful result, enhance it with requested data
-    if result and not result.get("error"):
+    @staticmethod
+    def _enhance_extraction_result(
+        result: Dict[str, Any], url: str, extract_metadata: bool, 
+        extract_links: bool, extract_images: bool, timeout: int
+    ) -> None:
+        """Enhance extraction result with metadata, links, and images if requested."""
+        headers = {'User-Agent': random.choice(USER_AGENTS)}
+        
         # Add metadata if requested and not already present
         if extract_metadata and "title" not in result:
             try:
-                headers = {'User-Agent': random.choice(USER_AGENTS)}
                 response = requests.get(url, headers=headers, timeout=timeout)
                 soup = BeautifulSoup(response.content, 'html.parser')
                 
@@ -147,7 +324,6 @@ def get_website_text_content(
         # Extract links if requested
         if extract_links and "links" not in result:
             try:
-                headers = {'User-Agent': random.choice(USER_AGENTS)}
                 response = requests.get(url, headers=headers, timeout=timeout)
                 soup = BeautifulSoup(response.content, 'html.parser')
                 
@@ -158,11 +334,10 @@ def get_website_text_content(
                     if href and href != "#":
                         # Handle relative URLs
                         if href.startswith('/'):
-                            from urllib.parse import urljoin
                             href = urljoin(url, href)
                         links.append({"url": href, "text": text or "[No text]"})
                 
-                result["links"] = links[:50]  # Limit to first 50 links to avoid excessive output
+                result["links"] = links[:MAX_LINKS_EXTRACT]  # Limit to first 50 links to avoid excessive output
                 result["total_links"] = len(links)
             except Exception as e:
                 result["links_error"] = str(e)
@@ -170,7 +345,6 @@ def get_website_text_content(
         # Extract images if requested
         if extract_images and "images" not in result:
             try:
-                headers = {'User-Agent': random.choice(USER_AGENTS)}
                 response = requests.get(url, headers=headers, timeout=timeout)
                 soup = BeautifulSoup(response.content, 'html.parser')
                 
@@ -181,175 +355,45 @@ def get_website_text_content(
                     if src:
                         # Handle relative URLs
                         if src.startswith('/'):
-                            from urllib.parse import urljoin
                             src = urljoin(url, src)
                         images.append({"url": src, "alt": alt or "[No alt text]"})
                 
-                result["images"] = images[:20]  # Limit to first 20 images
+                result["images"] = images[:MAX_IMAGES_EXTRACT]  # Limit to first 20 images
                 result["total_images"] = len(images)
             except Exception as e:
                 result["images_error"] = str(e)
+    
+    @staticmethod
+    def _build_error_response(url: str, errors: List[str], fallback_to_dynamic: bool) -> Dict[str, Any]:
+        """Build error response for failed content extraction."""
+        error_str = "; ".join(errors)
         
-        content_length = len(result.get("content", ""))
-        tool_report_print("Content extraction successful:", 
-                        f"Extracted {content_length} characters using {result.get('extraction_method', 'unknown')} method")
-        return result
-    
-    # Step 4: All extraction methods failed
-    error_str = "; ".join(errors)
-    
-    # Check if this might be a JS-heavy site
-    js_indicators = [
-        "Cloudflare", "JavaScript", "ReactJS", "Vue", "Angular", 
-        "dynamic content", "captcha", "authentication"
-    ]
-    
-    recommendation = ""
-    if any(indicator.lower() in error_str.lower() for indicator in js_indicators):
-        if not fallback_to_dynamic:
-            recommendation = (
-                " This appears to be a JavaScript-heavy site. "
-                "Try using this function with fallback_to_dynamic=True or use scrape_dynamic_content() directly."
-            )
-        else:
-            recommendation = " This site may be protected against scraping."
-    
-    final_result = {
-        "error": f"Content extraction failed.{recommendation}",
-        "content": "",
-        "extraction_method": "failed",
-        "url": url,
-        "errors": errors
-    }
-    
-    tool_report_print("Content extraction failed:", final_result["error"], is_error=True)
-    return final_result
-
-def extract_via_service(url: str) -> Dict[str, Any]:
-    """Extract webpage content using the third-party service."""
-    try:
-        base = "https://md.dhr.wtf/?url="
-        headers = {'User-Agent': random.choice(USER_AGENTS)}
+        # Check if this might be a JS-heavy site
+        js_indicators = [
+            "Cloudflare", "JavaScript", "ReactJS", "Vue", "Angular", 
+            "dynamic content", "captcha", "authentication"
+        ]
         
-        response = requests.get(base+url, headers=headers, timeout=10)
-        response.raise_for_status()
+        recommendation = ""
+        if any(indicator.lower() in error_str.lower() for indicator in js_indicators):
+            if not fallback_to_dynamic:
+                recommendation = (
+                    " This appears to be a JavaScript-heavy site. "
+                    "Try using this function with fallback_to_dynamic=True or use scrape_dynamic_content() directly."
+                )
+            else:
+                recommendation = " This site may be protected against scraping."
         
-        soup = BeautifulSoup(response.content, 'lxml')
-        text_content = soup.get_text(separator='\n', strip=True)
-        
-        # Check if content seems empty or too short
-        if len(text_content) < 100:
-            return {
-                "error": "Content extracted is suspiciously short, possibly failed extraction",
-                "content": text_content,
-                "extraction_method": "service",
-                "url": url
-            }
-            
-        # Successful extraction
-        return {
-            "content": text_content,
-            "extraction_method": "service",
+        final_result = {
+            "error": f"Content extraction failed.{recommendation}",
+            "content": "",
+            "extraction_method": "failed",
             "url": url,
-            "length": len(text_content)
+            "errors": errors
         }
         
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Service extraction failed: {str(e)}"}
-    except Exception as e:
-        return {"error": f"Service extraction error: {str(e)}"}
-
-def extract_direct(url: str, focus_element: str = None, timeout: int = 15) -> Dict[str, Any]:
-    """Extract webpage content directly using requests and BeautifulSoup."""
-    try:
-        headers = {
-            'User-Agent': random.choice(USER_AGENTS),
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-        
-        response = requests.get(url, headers=headers, timeout=timeout)
-        response.raise_for_status()
-        
-        # Process content
-        soup = BeautifulSoup(response.text, 'lxml')
-        
-        # Remove script and style elements that we don't want to extract text from
-        for element in soup(['script', 'style', 'head', 'header', 'footer', 'nav']):
-            element.decompose()
-        
-        # Find the main content - usually in article, main, or div with content-related class/id
-        main_content = None
-        
-        # Use focus element if provided
-        if focus_element:
-            content = soup.select_one(focus_element)
-            if content and len(content.get_text(strip=True)) > 50:
-                main_content = content
-                
-        # Otherwise try common content selectors
-        if not main_content:
-            for selector in ['article', 'main', '.content', '#content', '.post', '.article', '.entry-content', '#main']:
-                content = soup.select_one(selector)
-                if content and len(content.get_text(strip=True)) > 200:
-                    main_content = content
-                    break
-        
-        # If no main content block found, use body
-        if not main_content:
-            main_content = soup.body
-        
-        if not main_content:
-            return {"error": "Failed to locate content in the page"}
-        
-        # Extract text with better formatting
-        paragraphs = []
-        for element in main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'pre', 'blockquote']):
-            text = element.get_text(strip=True)
-            if text:
-                if element.name.startswith('h'):
-                    # Format headings with markdown-style hashes
-                    level = int(element.name[1])
-                    paragraphs.append(f"\n{'#' * level} {text}\n")
-                elif element.name == 'li':
-                    # Format list items
-                    paragraphs.append(f"* {text}")
-                elif element.name == 'pre':
-                    # Format code blocks
-                    paragraphs.append(f"```\n{text}\n```")
-                else:
-                    paragraphs.append(text)
-        
-        content = "\n\n".join(paragraphs)
-        
-        # Check if content seems empty or too short
-        if len(content) < 100:
-            return {
-                "error": "Content extracted is suspiciously short, possibly failed extraction",
-                "content": content,
-                "extraction_method": "direct",
-                "url": url
-            }
-            
-        # Get page title
-        title = soup.title.string if soup.title else "No title"
-        
-        # Successful extraction
-        return {
-            "content": content,
-            "title": title,
-            "extraction_method": "direct",
-            "url": url,
-            "length": len(content)
-        }
-        
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Direct extraction failed: {str(e)}"}
-    except Exception as e:
-        return {"error": f"Direct extraction error: {str(e)}"}
+        tool_report_print("Content extraction failed:", final_result["error"], is_error=True)
+        return final_result
 
 def http_get_request(url: str, headers_json: str = "") -> str:
     """
@@ -649,7 +693,7 @@ def smart_content_extraction(url: str,
     
     # First, try regular content extraction
     try:
-        regular_content = get_website_text_content(url)
+        regular_content = WebContentExtractor.get_website_text_content(url)
         
         # If content seems empty or very short, it might need dynamic extraction
         content_text = regular_content.get('content', '')

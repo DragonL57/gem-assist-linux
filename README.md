@@ -106,8 +106,8 @@ gem-assist comes with a set of built-in tools that you can use in your conversat
 
 - **Web Search:** `web_search` (with integrated content extraction)
 - **File System:** `list_dir`, `write_files`, `create_directory`, `copy_file`, `move_file`, `rename_file`, `rename_directory`, `get_file_metadata`, `get_multiple_directory_size`
-- **System:** `get_system_info`, `run_shell_command`, `get_current_datetime`, `get_current_directory`, `get_drives`, `get_environment_variable`
-- **Web Interaction:** `get_website_text_content`, `http_get_request`, `open_url`, `download_file_from_url`, `extract_structured_data`, `extract_tables_to_dataframes`, `scrape_with_pagination`, `scrape_dynamic_content`
+- **System:** `get_system_info`, `run_shell_command`, `get_current_datetime`, `get_current_directory`, `get_drives`, `get_environment_variable`, `run_parallel_commands` 
+- **Web Interaction:** `get_website_text_content` (enhanced with links/images extraction), `http_get_request`, `open_url`, `download_file_from_url`, `extract_structured_data`, `extract_tables_to_dataframes`, `scrape_with_pagination`, `scrape_dynamic_content`
 - **Document Processing:** `read_file_content`, `convert_document`, `read_excel_file`, `read_excel_structure`, `read_pdf_text`, `convert_excel_to_format`
 - **Code Execution:** `execute_python_code`, `analyze_pandas_dataframe`
 - **Reddit:** `reddit_search`, `get_reddit_post`, `reddit_submission_comments`

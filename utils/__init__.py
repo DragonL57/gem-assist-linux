@@ -16,11 +16,12 @@ from .filesystem import (
 from .network import (
     get_website_text_content, http_get_request, http_post_request,
     open_url, download_file_from_url, resolve_filename_from_url,
-    try_resolve_filename_from_url, get_youtube_transcript
+    try_resolve_filename_from_url, get_youtube_transcript, smart_content_extraction
 )
 from .system import (
     get_system_info, run_shell_command, get_current_datetime,
-    evaluate_math_expression, get_environment_variable
+    evaluate_math_expression, get_environment_variable, 
+    get_current_directory, run_parallel_commands
 )
 from .search import (
     reddit_search, get_reddit_post,
@@ -56,11 +57,11 @@ TOOLS = [
     
     # Network tools
     get_website_text_content, http_get_request, http_post_request,
-    open_url, download_file_from_url, get_youtube_transcript,
+    open_url, download_file_from_url, get_youtube_transcript, smart_content_extraction,
     
     # System tools
     get_system_info, run_shell_command, get_current_datetime,
-    evaluate_math_expression, get_environment_variable,
+    evaluate_math_expression, get_environment_variable, run_parallel_commands,
     
     # Search tools
     reddit_search, get_reddit_post,
@@ -87,9 +88,9 @@ __all__ = [
     'list_dir', 'get_drives', 'get_multiple_directory_size', 'create_directory', 
     'get_file_metadata', 'write_files', 'copy_file', 'move_file', 'rename_file', 'rename_directory', 'find_files', 
     'get_website_text_content', 'http_get_request', 'http_post_request', 'open_url', 'download_file_from_url', 
-    'get_youtube_transcript',
+    'get_youtube_transcript', 'smart_content_extraction',
     'get_system_info', 'run_shell_command', 'get_current_datetime', 'evaluate_math_expression', 'get_current_directory', 
-    'zip_archive_files', 'zip_extract_files', 'get_environment_variable', 
+    'zip_archive_files', 'zip_extract_files', 'get_environment_variable', 'run_parallel_commands',
     'find_tools', 'web_search',
     'reddit_search', 'get_reddit_post', 'reddit_submission_comments',
     'convert_document', 'read_excel_file', 'read_excel_structure', 'read_pdf_text', 'convert_excel_to_format', 

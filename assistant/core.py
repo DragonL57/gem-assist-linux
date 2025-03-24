@@ -22,7 +22,7 @@ from assistant.session import SessionManager
 from assistant.conversion import TypeConverter
 
 # Define a custom theme for the application
-custom_theme = Theme({
+CUSTOM_THEME = Theme({
     "info": "cyan",
     "warning": "yellow",
     "error": "bold red",
@@ -37,10 +37,7 @@ custom_theme = Theme({
 })
 
 # Define search-related tools for concise output
-SEARCH_TOOLS = [
-    "web_search",
-    "reddit_search"
-]
+SEARCH_TOOLS = ["web_search", "reddit_search"]
 
 class Assistant:
     """
@@ -61,10 +58,10 @@ class Assistant:
         self.messages = []
         self.available_functions = {func.__name__: func for func in tools}
         self.tools = list(map(function_to_json_schema, tools))
-        self.console = Console(theme=custom_theme)
+        self.console = Console(theme=CUSTOM_THEME)
         self.last_reasoning = None
 
-        # Initialize components
+        # Initialize components using dependency injection
         self.display = AssistantDisplay(self)
         self.message_processor = MessageProcessor(self)
         self.reasoning_engine = ReasoningEngine(self)
@@ -72,6 +69,7 @@ class Assistant:
         self.session_manager = SessionManager(self)
         self.type_converter = TypeConverter()
 
+        # Add system instruction if provided
         if system_instruction:
             self.messages.append({"role": "system", "content": system_instruction})
 
@@ -136,7 +134,7 @@ class Assistant:
                 )
             except Exception as e:
                 if "resource exhausted" in str(e).lower() and attempt < max_retries - 1:
-                    delay = 4 * (2 ** attempt)
+                    delay = 4 * (2 ** attempt)  # Exponential backoff: 4, 8, 16...
                     self.console.print(f"[warning]Resource exhausted: {e}. Retrying in {delay} seconds...[/]")
                     time.sleep(delay)
                 else:
@@ -144,7 +142,6 @@ class Assistant:
         
         raise Exception("Failed to get completion after maximum retries")
 
-    # Message history functions
     def add_msg_assistant(self, msg: str) -> None:
         """Add an assistant message to the conversation history."""
         self.messages.append({"role": "assistant", "content": msg})
