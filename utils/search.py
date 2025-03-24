@@ -1,6 +1,6 @@
 """
 Search utility functions for the gem-assist package.
-These functions are used for searching the web, Reddit, and Wikipedia.
+These functions are used for searching the web and Reddit.
 """
 
 import os
@@ -27,56 +27,81 @@ reddit = praw.Reddit(
     user_agent="PersonalBot/1.0",
 )
 
-# No longer using Google Search API
-
-# Basic DuckDuckGo search tool removed - use advanced_duckduckgo_search instead
-
-def advanced_duckduckgo_search(query: str, time_period: str = None, 
-                              region: str = "wt-wt", safesearch: str = "moderate",
-                              max_results: int = 10, domain: str = None) -> List[Dict]:
+def web_search(
+    query: str, 
+    time_period: str = None,
+    region: str = "wt-wt",
+    safesearch: str = "moderate",
+    content_type: str = None, 
+    site_restrict: str = None,
+    exclude_terms: str = None,
+    min_results: int = 5,
+    max_results: int = 15,
+    sort_by: str = "relevance"
+) -> List[Dict]:
     """
-    Performs an advanced DuckDuckGo search with filtering options.
+    Comprehensive web search with advanced filtering and ranking options.
     
     Args:
-        query: Search query string
+        query: Main search query string
         time_period: Time filter (d: day, w: week, m: month, y: year)
         region: Region code for localized results, default is "wt-wt" (worldwide)
         safesearch: Safe search setting ("on", "moderate", "off")
+        content_type: Filter by content type (news, blogs, academic, videos)
+        site_restrict: Limit search to specific domains (e.g., "wikipedia.org")
+        exclude_terms: Terms to exclude from search results (comma-separated)
+        min_results: Minimum number of results to return
         max_results: Maximum number of results to return
-        domain: Filter results to a specific domain (e.g., "wikipedia.org")
+        sort_by: How to rank results (relevance, date, authority)
         
     Returns:
-        List of search results as dictionaries
+        Filtered and ranked list of search results
     """
-    tool_message_print("advanced_duckduckgo_search", [
+    tool_message_print("web_search", [
         ("query", query),
         ("time_period", time_period or "all time"),
         ("region", region),
         ("safesearch", safesearch),
+        ("content_type", content_type or "all"),
+        ("site_restrict", site_restrict or "all sites"),
+        ("exclude_terms", exclude_terms or "none"),
         ("max_results", str(max_results)),
-        ("domain", domain or "any")
+        ("sort_by", sort_by)
     ])
     
     try:
-        # Modify query if domain filter is specified
-        if domain:
-            query = f"site:{domain} {query}"
+        # Build the enhanced query with filters
+        enhanced_query = query
         
-        # Initialize DuckDuckGo search
+        # Add site restriction
+        if site_restrict:
+            enhanced_query = f"site:{site_restrict} {enhanced_query}"
+        
+        # Add content type filter
+        if content_type:
+            content_filters = {
+                "news": "inurl:news OR inurl:article",
+                "blogs": "inurl:blog",
+                "academic": "filetype:pdf OR site:.edu OR site:.gov OR site:scholar.google.com",
+                "videos": "site:youtube.com OR site:vimeo.com"
+            }
+            if content_type.lower() in content_filters:
+                enhanced_query = f"{enhanced_query} {content_filters[content_type.lower()]}"
+        
+        # Add excluded terms
+        if exclude_terms:
+            excluded = [f"-{term.strip()}" for term in exclude_terms.split(",")]
+            enhanced_query = f"{enhanced_query} {' '.join(excluded)}"
+        
+        # Initialize search
         ddgs = duckduckgo_search.DDGS(timeout=conf.DUCKDUCKGO_TIMEOUT)
         
         # Set time period parameter
         time_map = {
-            "d": "d",
-            "day": "d",
-            "w": "w",
-            "week": "w",
-            "m": "m",
-            "month": "m",
-            "y": "y",
-            "year": "y"
+            "d": "d", "day": "d", "w": "w", "week": "w", 
+            "m": "m", "month": "m", "y": "y", "year": "y"
         }
-        time_param = time_map.get(time_period, "")
+        time_param = time_map.get(time_period, "") if time_period else ""
         
         # Convert safesearch parameter
         safesearch_map = {
@@ -87,22 +112,36 @@ def advanced_duckduckgo_search(query: str, time_period: str = None,
         safesearch_param = safesearch_map.get(safesearch, "moderate")
         
         # Perform the search
-        results = list(ddgs.text(
-            query,
+        raw_results = list(ddgs.text(
+            enhanced_query,
             region=region,
             safesearch=safesearch_param,
             timelimit=time_param,
-            max_results=max_results
+            max_results=max(max_results * 2, 20)  # Get more results than needed for better filtering
         ))
         
-        tool_report_print("Advanced DuckDuckGo search complete:", f"Found {len(results)} results for '{query}'")
+        # Rerank results based on sort_by parameter
+        if sort_by.lower() == "date" and raw_results:
+            # Simple attempt to prioritize results with dates in the title/body
+            raw_results.sort(key=lambda x: sum(term in x.get('title', '').lower() + x.get('body', '').lower() 
+                                          for term in ['2023', '2024', 'today', 'latest', 'new', 'update']), 
+                         reverse=True)
+        elif sort_by.lower() == "authority" and raw_results:
+            # Simple heuristic for "authority" - prioritize known domains
+            authority_domains = ['.edu', '.gov', '.org', 'wikipedia.org', 'github.com', 'stackoverflow.com']
+            raw_results.sort(key=lambda x: sum(domain in x.get('href', '').lower() for domain in authority_domains), 
+                         reverse=True)
+        
+        # Ensure we have at least min_results if available
+        results = raw_results[:max(min_results, min(max_results, len(raw_results)))]
+        
+        tool_report_print("Web search complete:", 
+                         f"Found {len(results)} results for '{query}' with filters applied")
         return results
     
     except Exception as e:
-        tool_report_print("Error during advanced DuckDuckGo search:", str(e), is_error=True)
+        tool_report_print("Error during web search:", str(e), is_error=True)
         return [{"error": f"Search failed: {str(e)}"}]
-
-# google_search and meta_search have been removed
 
 def reddit_search(subreddit: str, sorting: str, query: str | None = None) -> dict:
     """
@@ -221,8 +260,6 @@ def reddit_submission_comments(submission_url: str) -> dict:
     print(f"{Fore.CYAN}  ├─Fetched {len(results)} reddit comments.")
     return results
 
-# Wikipedia tools removed
-
 def find_tools(query: str) -> list[str]:
     """
     Allows the assistant to find tools that fuzzy matchs a given query. 
@@ -245,102 +282,3 @@ def find_tools(query: str) -> list[str]:
         for match in best_matchs
         if match[1] > 60 # only return tools with a score above 60
     ]
-
-def filtered_search(
-    query: str, 
-    time_period: str = None,
-    content_type: str = None, 
-    site_restrict: str = None,
-    exclude_terms: str = None,
-    min_results: int = 5,
-    max_results: int = 15,
-    sort_by: str = "relevance"
-) -> List[Dict]:
-    """
-    Perform an advanced search with comprehensive filtering and ranking options.
-    
-    Args:
-        query: Main search query
-        time_period: Time restriction (d: day, w: week, m: month, y: year)
-        content_type: Filter by content type (news, blogs, academic, videos)
-        site_restrict: Limit search to specific domains (e.g., "wikipedia.org")
-        exclude_terms: Terms to exclude from search results (comma-separated)
-        min_results: Minimum number of results to return
-        max_results: Maximum number of results to return
-        sort_by: How to rank results (relevance, date, authority)
-        
-    Returns:
-        Filtered and ranked list of search results
-    """
-    tool_message_print("filtered_search", [
-        ("query", query),
-        ("time_period", time_period or "all time"),
-        ("content_type", content_type or "all"),
-        ("site_restrict", site_restrict or "all sites"),
-        ("exclude_terms", exclude_terms or "none"),
-        ("sort_by", sort_by)
-    ])
-    
-    try:
-        # Build the enhanced query with filters
-        enhanced_query = query
-        
-        # Add site restriction
-        if site_restrict:
-            enhanced_query = f"site:{site_restrict} {enhanced_query}"
-        
-        # Add content type filter
-        if content_type:
-            content_filters = {
-                "news": "inurl:news OR inurl:article",
-                "blogs": "inurl:blog",
-                "academic": "filetype:pdf OR site:.edu OR site:.gov OR site:scholar.google.com",
-                "videos": "site:youtube.com OR site:vimeo.com"
-            }
-            if content_type.lower() in content_filters:
-                enhanced_query = f"{enhanced_query} {content_filters[content_type.lower()]}"
-        
-        # Add excluded terms
-        if exclude_terms:
-            excluded = [f"-{term.strip()}" for term in exclude_terms.split(",")]
-            enhanced_query = f"{enhanced_query} {' '.join(excluded)}"
-        
-        # Initialize search
-        ddgs = duckduckgo_search.DDGS()
-        
-        # Set time period parameter
-        time_map = {
-            "d": "d", "day": "d", "w": "w", "week": "w", 
-            "m": "m", "month": "m", "y": "y", "year": "y"
-        }
-        time_param = time_map.get(time_period, "") if time_period else ""
-        
-        # Perform the search
-        raw_results = list(ddgs.text(
-            enhanced_query,
-            timelimit=time_param,
-            max_results=max(max_results * 2, 20)  # Get more results than needed for better filtering
-        ))
-        
-        # Rerank results based on sort_by parameter
-        if sort_by.lower() == "date" and raw_results:
-            # Simple attempt to prioritize results with dates in the title/body
-            raw_results.sort(key=lambda x: sum(term in x.get('title', '').lower() + x.get('body', '').lower() 
-                                          for term in ['2023', '2024', 'today', 'latest', 'new', 'update']), 
-                         reverse=True)
-        elif sort_by.lower() == "authority" and raw_results:
-            # Simple heuristic for "authority" - prioritize known domains
-            authority_domains = ['.edu', '.gov', '.org', 'wikipedia.org', 'github.com', 'stackoverflow.com']
-            raw_results.sort(key=lambda x: sum(domain in x.get('href', '').lower() for domain in authority_domains), 
-                         reverse=True)
-        
-        # Return sorted and limited results
-        results = raw_results[:max_results]
-        
-        tool_report_print("Filtered search complete:", 
-                         f"Found {len(results)} results for '{query}' with filters applied")
-        return results
-    
-    except Exception as e:
-        tool_report_print("Error during filtered search:", str(e), is_error=True)
-        return [{"error": f"Search failed: {str(e)}"}]

@@ -150,7 +150,7 @@ def get_system_prompt():
     5. BE STRATEGIC: Choose the right tools and parameters to avoid rate limits and maximize information quality.
     
     # SEARCH TOOL RATE LIMIT AWARENESS
-    The advanced_duckduckgo_search and filtered_search tools can hit rate limits if used too frequently.
+    The web_search tool can hit rate limits if used too frequently.
     To avoid this critical issue:
     - Use only 1-2 broad search queries instead of multiple specific ones
     - Focus on extracting deep content from a few high-quality websites rather than conducting many searches
@@ -161,7 +161,7 @@ def get_system_prompt():
     # Strategic Tool Selection Guidelines
     
     ## For Information Gathering:
-    - Start with 1-2 BROAD searches to identify 3-5 high-quality information sources
+    - Start with 1-2 BROAD searches using web_search to identify 3-5 high-quality information sources
     - IMMEDIATELY follow up by using get_website_text_content on the most promising URLs
     - Extract comprehensive information from each site rather than making additional searches
     - Use site_restrict parameter to target authoritative domains in a single search rather than multiple searches
@@ -195,7 +195,7 @@ def get_system_prompt():
     # Tool Combinations and Workflows
     
     ## Efficient Research Workflow: 
-    1. ONE broad filtered_search → identify 3-5 best sources
+    1. ONE broad web_search → identify 3-5 best sources
     2. get_website_text_content on top 2-3 results → extract comprehensive information
     3. execute_python_code → analyze and synthesize findings
     
@@ -206,7 +206,7 @@ def get_system_prompt():
     4. execute_python_code → visualize findings
     
     ## Technical Troubleshooting:
-    1. ONE advanced_duckduckgo_search with site_restrict → find top relevant documentation
+    1. ONE web_search with site_restrict → find top relevant documentation
     2. get_website_text_content on the most promising 2-3 URLs → extract complete technical details
     3. run_shell_command → diagnose system issues if needed
     4. execute_python_code → test potential solutions

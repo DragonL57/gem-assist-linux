@@ -38,8 +38,7 @@ custom_theme = Theme({
 
 # Define search-related tools for concise output
 SEARCH_TOOLS = [
-    "advanced_duckduckgo_search", 
-    "filtered_search",
+    "web_search",
     "reddit_search"
 ]
 
