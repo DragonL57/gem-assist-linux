@@ -15,6 +15,7 @@ import re
 from datetime import datetime, timedelta
 
 from .core import tool_message_print, tool_report_print
+from .network import get_website_text_content  # Import the content extraction function
 import config as conf
 
 # Load environment variables
@@ -37,10 +38,12 @@ def web_search(
     exclude_terms: str = None,
     min_results: int = 5,
     max_results: int = 15,
-    sort_by: str = "relevance"
+    sort_by: str = "relevance",
+    extract_content: bool = False,
+    extract_top_n: int = 1
 ) -> List[Dict]:
     """
-    Comprehensive web search with advanced filtering and ranking options.
+    Comprehensive web search with advanced filtering, ranking options, and content extraction.
     
     Args:
         query: Main search query string
@@ -53,9 +56,11 @@ def web_search(
         min_results: Minimum number of results to return
         max_results: Maximum number of results to return
         sort_by: How to rank results (relevance, date, authority)
+        extract_content: Whether to extract the full content of the top search results
+        extract_top_n: Number of top results to extract content from if extract_content is True
         
     Returns:
-        Filtered and ranked list of search results
+        Filtered and ranked list of search results with optional content extraction
     """
     tool_message_print("web_search", [
         ("query", query),
@@ -66,7 +71,9 @@ def web_search(
         ("site_restrict", site_restrict or "all sites"),
         ("exclude_terms", exclude_terms or "none"),
         ("max_results", str(max_results)),
-        ("sort_by", sort_by)
+        ("sort_by", sort_by),
+        ("extract_content", str(extract_content)),
+        ("extract_top_n", str(extract_top_n) if extract_content else "N/A")
     ])
     
     try:
@@ -135,8 +142,31 @@ def web_search(
         # Ensure we have at least min_results if available
         results = raw_results[:max(min_results, min(max_results, len(raw_results)))]
         
+        # Extract content if requested
+        if extract_content and results:
+            num_to_extract = min(extract_top_n, len(results))
+            tool_report_print("Content extraction:", 
+                            f"Extracting content from top {num_to_extract} search results", 
+                            is_error=False)
+            
+            for i in range(num_to_extract):
+                try:
+                    url = results[i].get('href')
+                    if url:
+                        content_data = get_website_text_content(url)
+                        # Add the extracted content to the search result
+                        results[i]['extracted_content'] = content_data.get('content', '')
+                        results[i]['extraction_method'] = content_data.get('extraction_method', 'unknown')
+                        results[i]['extraction_status'] = 'success' if not content_data.get('error') else 'failed'
+                        
+                        if content_data.get('error'):
+                            results[i]['extraction_error'] = content_data.get('error')
+                except Exception as e:
+                    results[i]['extraction_status'] = 'failed'
+                    results[i]['extraction_error'] = str(e)
+        
         tool_report_print("Web search complete:", 
-                         f"Found {len(results)} results for '{query}' with filters applied")
+                        f"Found {len(results)} results for '{query}' with filters applied")
         return results
     
     except Exception as e:

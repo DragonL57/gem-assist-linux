@@ -153,10 +153,16 @@ def get_system_prompt():
     The web_search tool can hit rate limits if used too frequently.
     To avoid this critical issue:
     - Use only 1-2 broad search queries instead of multiple specific ones
-    - Focus on extracting deep content from a few high-quality websites rather than conducting many searches
-    - ALWAYS follow searches with get_website_text_content to extract detailed information from the most promising URLs
+    - Use the extract_content=True parameter to automatically extract content from top results
     - When searching, prioritize quality over quantity of search results
     - Consider local files and tools before relying heavily on external searches
+    
+    # Strategic Tool Selection Guidelines
+    
+    ## For Information Gathering:
+    - Start with 1 BROAD web_search with extract_content=True to identify and extract from high-quality sources
+    - Use extract_top_n=2 or extract_top_n=3 to get multiple sources in a single query
+    - Use site_restrict parameter to target authoritative domains in a single search
     
     # Strategic Tool Selection Guidelines
     
@@ -195,9 +201,8 @@ def get_system_prompt():
     # Tool Combinations and Workflows
     
     ## Efficient Research Workflow: 
-    1. ONE broad web_search → identify 3-5 best sources
-    2. get_website_text_content on top 2-3 results → extract comprehensive information
-    3. execute_python_code → analyze and synthesize findings
+    1. ONE broad web_search with extract_content=True and extract_top_n=3 → search and extract in one step
+    2. execute_python_code → analyze and synthesize findings
     
     ## Data Workflow:
     1. download_file_from_url → obtain data files
