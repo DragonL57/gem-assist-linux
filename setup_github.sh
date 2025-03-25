@@ -23,7 +23,7 @@ git add .
 
 # Commit changes
 echo -e "${BLUE}Committing changes...${NC}"
-git commit -m "Improve prompting and merge 2 read_file tool"
+git commit -m "Improve prompting and fix _get_youtube_transcript"
 
 # Check if the remote exists
 REMOTE_EXISTS=$(git remote | grep origin)

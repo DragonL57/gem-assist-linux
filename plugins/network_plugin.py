@@ -168,55 +168,92 @@ class NetworkPlugin(Plugin):
                     query = urllib.parse.urlparse(video_url).query
                     params = urllib.parse.parse_qs(query)
                     video_id = params.get('v', [''])[0]
-                elif 'youtu.be' in video_url:
-                    video_id = video_url.split('/')[-1].split('?')[0]
+                elif 'youtu.be/' in video_url:
+                    video_id = video_url.split('youtu.be/')[1].split('?')[0]
                 else:
-                    return "Error: Unable to extract video ID from URL"
+                    return "Error: Could not extract video ID from URL"
             else:
                 # Assume the input is already a video ID
                 video_id = video_url
                 
             if not video_id:
-                return "Error: Unable to extract valid video ID"
+                return "Error: No video ID found"
                 
-            # Get transcript
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            
-            # Try to get requested language transcript
+            # Try to get transcript in the specified languages
             try:
-                for lang in languages:
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                
+                # First try: Get transcript in one of the specified languages
+                try:
+                    transcript = transcript_list.find_transcript(languages)
+                except:
+                    # Second try: Get English transcript if available
                     try:
-                        transcript = transcript_list.find_transcript([lang])
-                        break
+                        transcript = transcript_list.find_transcript(['en'])
                     except:
+                        # If all fails, try to get any available transcript
+                        try:
+                            transcript = next(iter(transcript_list._manually_created_transcripts.values()), 
+                                           next(iter(transcript_list._generated_transcripts.values()), None))
+                        except:
+                            return "Error: No transcript available for this video"
+                
+                if not transcript:
+                    return "Error: No transcript available for this video"
+                    
+                # Fetch the transcript data
+                transcript_data = transcript.fetch()
+                
+                # Format the transcript with timestamps
+                formatted_transcript = []
+                for entry in transcript_data:
+                    try:
+                        # Handle both dictionary entries and object entries
+                        if hasattr(entry, 'start') and hasattr(entry, 'text'):
+                            # It's an object with attributes
+                            start_time = int(entry.start)
+                            text = entry.text.strip()
+                        elif isinstance(entry, dict):
+                            # It's a dictionary
+                            start_time = int(entry.get('start', 0))
+                            text = entry.get('text', '').strip()
+                        else:
+                            # Unknown format, try direct access
+                            start_time = int(entry['start']) if 'start' in entry else 0
+                            text = str(entry['text']).strip() if 'text' in entry else ''
+                        
+                        minutes = start_time // 60
+                        seconds = start_time % 60
+                        timestamp = f"[{minutes:02d}:{seconds:02d}]"
+                        formatted_transcript.append(f"{timestamp} {text}")
+                    except (KeyError, TypeError, ValueError, AttributeError) as e:
+                        # Skip problematic entries
                         continue
-                else:  # No matching language found, get default
-                    transcript = transcript_list.find_transcript(['en'])
-            except:
-                # If all fails, try to get any available transcript
-                transcript = next(iter(transcript_list._manually_created_transcripts.values()), 
-                               next(iter(transcript_list._generated_transcripts.values()), None))
                 
-            if not transcript:
-                return "Error: No transcript available for this video"
+                # Add video title if we can get it
+                try:
+                    import requests
+                    from bs4 import BeautifulSoup
+                    response = requests.get(f"https://www.youtube.com/watch?v={video_id}")
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    title = soup.find('title').text.replace(' - YouTube', '')
+                    header = f"Video: {title}\n\n"
+                except:
+                    header = ""
                 
-            # Fetch the transcript data
-            transcript_data = transcript.fetch()
-            
-            # Format the transcript with timestamps
-            formatted_transcript = []
-            for entry in transcript_data:
-                start_time = int(entry['start'])
-                minutes = start_time // 60
-                seconds = start_time % 60
-                timestamp = f"[{minutes:02d}:{seconds:02d}]"
-                text = entry['text']
-                formatted_transcript.append(f"{timestamp} {text}")
+                # Join transcript parts
+                result = header + "\n".join(formatted_transcript)
                 
-            return "\n".join(formatted_transcript)
-            
+                tool_report_print(f"Successfully retrieved transcript with {len(formatted_transcript)} segments")
+                return result
+                
+            except Exception as e:
+                return f"Error getting transcript: {str(e)}"
+                
+        except ImportError:
+            return "Error: youtube_transcript_api package is required for this tool"
         except Exception as e:
-            return f"Error getting transcript: {e}"
+            return f"Error: {str(e)}"
 
     @staticmethod
     @tool(
