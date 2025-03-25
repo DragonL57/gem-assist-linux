@@ -193,14 +193,17 @@ class FileSystemPlugin(Plugin):
     @staticmethod
     @tool(
         categories=["filesystem", "io"],
-        requires_filesystem=True
+        requires_filesystem=True,
+        example_usage="read_file('path/to/file.txt', auto_detect_type=True)"
     )
-    def read_file_content(filepath: str) -> str:
+    def read_file(filepath: str, auto_detect_type: bool = True, force_text_mode: bool = False) -> str:
         """
-        Read the content of a file.
+        Unified file reading tool that handles both plain text and complex document types.
         
         Args:
             filepath: Path to the file
+            auto_detect_type: When True, automatically detect and process file based on extension
+            force_text_mode: When True, attempt to read any file as plain text regardless of type
             
         Returns:
             File content as a string
@@ -221,28 +224,43 @@ class FileSystemPlugin(Plugin):
         
         # Handle based on file type
         try:
-            # Text files - direct read
-            if ext in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', 
-                      '.csv', '.log', '.sh', '.bat', '.ini', '.conf', '.yaml', '.yml']:
+            # Force text mode if requested
+            if force_text_mode:
                 with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                     return f.read()
             
-            # PDF - use document utils
-            elif ext == '.pdf':
-                from utils.document_utils import read_pdf_text
-                return read_pdf_text(filepath)
-            
-            # Office documents
-            elif ext in ['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt']:
-                from utils.document_utils import convert_document
-                return convert_document(filepath)
+            # Process by file type if auto_detect_type is True
+            if auto_detect_type:
+                # Text files - direct read
+                if ext in ['.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', 
+                          '.csv', '.log', '.sh', '.bat', '.ini', '.conf', '.yaml', '.yml']:
+                    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                        return f.read()
                 
-            # Binary files - report file type and size
+                # PDF - use document utils
+                elif ext == '.pdf':
+                    from utils.document_utils import read_pdf_text
+                    return read_pdf_text(filepath)
+                
+                # Office documents
+                elif ext in ['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt']:
+                    from utils.document_utils import convert_document
+                    return convert_document(filepath)
+                    
+                # Binary files - report file type and size
+                else:
+                    if force_text_mode:
+                        with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                            return f.read()
+                    else:
+                        size = os.path.getsize(filepath)
+                        return f"Binary file: {os.path.basename(filepath)} ({size} bytes). Use force_text_mode=True to attempt text reading."
             else:
-                size = os.path.getsize(filepath)
-                return f"Binary file: {os.path.basename(filepath)} ({size} bytes)"
-                
+                # Simple text reading mode (equivalent to old read_file behavior)
+                with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
+                    return f.read()
+        
         except Exception as e:
             return f"Error reading file: {e}"
-            
+
     # Add more filesystem tools as needed...
