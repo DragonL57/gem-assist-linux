@@ -4,6 +4,7 @@ Core Assistant class that coordinates different components.
 import inspect
 import json
 import os
+import logging
 from typing import Callable, Dict, Any, List, Optional
 import time
 import traceback
@@ -12,13 +13,22 @@ from rich.console import Console
 from rich.theme import Theme
 import litellm
 
+from assistant.error_handling.error_handler import ErrorHandler
+from assistant.logging.logger import AssistantLogger
+from assistant.exceptions.base import (
+    AssistantError,
+    ToolExecutionError,
+    ConfigurationError,
+    MessageProcessingError
+)
+
 from func_to_schema import function_to_json_schema
 from plugins import get_registry, discover_plugins
 
 from assistant.display import AssistantDisplay
 from assistant.messaging import MessageProcessor
 from assistant.reasoning import ReasoningEngine
-from assistant.execution import ToolExecutor
+from assistant.execution import ToolExecutor, ToolDisplayManager
 from assistant.session import SessionManager
 from assistant.conversion import TypeConverter
 
@@ -52,46 +62,59 @@ class Assistant:
         tools: List[Callable] = None,
         system_instruction: str = "",
         discover_plugins_on_start: bool = True,
+        log_level: int = logging.INFO
     ) -> None:
         """Initialize the assistant with model and tools."""
-        self.model = model
-        self.name = name
-        self.system_instruction = system_instruction
-        self.messages = []
-        
-        # Discover and register plugins if requested
-        if discover_plugins_on_start:
-            discover_plugins()
+        try:
+            self.model = model
+            self.name = name
+            self.system_instruction = system_instruction
+            self.messages = []
             
-        # Get tools from registry and combine with explicitly provided tools
-        registry = get_registry()
-        registry_tools = list(registry.get_tools().values())
-        
-        if tools is None:
-            tools = registry_tools
-        else:
-            # Combine explicit tools with registered tools, avoiding duplicates
-            registry_tool_names = {t.__name__ for t in registry_tools}
-            explicit_tools = [t for t in tools if t.__name__ not in registry_tool_names]
-            tools = registry_tools + explicit_tools
-        
-        self.available_functions = {func.__name__: func for func in tools}
-        # Ensure vertex compatibility for all tools
-        self.tools = [function_to_json_schema(func, vertex_compatible=True) for func in tools]
-        self.console = Console(theme=CUSTOM_THEME)
-        self.last_reasoning = None
+            # Initialize error handling and logging
+            self.error_handler = ErrorHandler()
+            self.logger = AssistantLogger(log_level=log_level)
+            
+            # Discover and register plugins if requested
+            if discover_plugins_on_start:
+                discover_plugins()
+                
+            # Get tools from registry and combine with explicitly provided tools
+            registry = get_registry()
+            registry_tools = list(registry.get_tools().values())
+            
+            if tools is None:
+                tools = registry_tools
+            else:
+                # Combine explicit tools with registered tools, avoiding duplicates
+                registry_tool_names = {t.__name__ for t in registry_tools}
+                explicit_tools = [t for t in tools if t.__name__ not in registry_tool_names]
+                tools = registry_tools + explicit_tools
+            
+            self.available_functions = {func.__name__: func for func in tools}
+            # Ensure vertex compatibility for all tools
+            self.tools = [function_to_json_schema(func, vertex_compatible=True) for func in tools]
+            self.console = Console(theme=CUSTOM_THEME)
+            self.last_reasoning = None
 
-        # Initialize components using dependency injection
-        self.display = AssistantDisplay(self)
-        self.message_processor = MessageProcessor(self)
-        self.reasoning_engine = ReasoningEngine(self)
-        self.tool_executor = ToolExecutor(self)
-        self.session_manager = SessionManager(self)
-        self.type_converter = TypeConverter()
+            # Initialize components using dependency injection
+            self.display = AssistantDisplay(self)
+            self.message_processor = MessageProcessor(self)
+            self.reasoning_engine = ReasoningEngine(self)
+            self.tool_executor = ToolExecutor(self)
+            self.session_manager = SessionManager(self)
+            self.type_converter = TypeConverter()
 
-        # Add system instruction if provided
-        if system_instruction:
-            self.messages.append({"role": "system", "content": system_instruction})
+            # Add system instruction if provided
+            if system_instruction:
+                self.messages.append({"role": "system", "content": system_instruction})
+                
+        except Exception as e:
+            raise ConfigurationError(
+                f"Failed to initialize assistant: {str(e)}",
+                details={"init_error": str(e)}
+            ) from e
+            
 
     def send_message(self, message: str) -> Dict[str, Any]:
         """
@@ -100,10 +123,23 @@ class Assistant:
         2. Execution phase: Execute the plan and provide the answer
         """
         try:
+            # Log start of message processing
+            self.logger.log_info(
+                "Starting message processing",
+                {"message_length": len(message)}
+            )
+            
             # Phase 1: Reasoning
             self.console.print("[bold blue]Reasoning Phase:[/]")
-            reasoning = self.reasoning_engine.get_reasoning(message)
-            self.last_reasoning = reasoning
+            try:
+                reasoning = self.reasoning_engine.get_reasoning(message)
+                self.last_reasoning = reasoning
+            except Exception as e:
+                raise MessageProcessingError(
+                    message="Failed during reasoning phase",
+                    phase="reasoning",
+                    details={"error": str(e)}
+                ) from e
             
             # Display the reasoning
             self.display.show_reasoning(reasoning)
@@ -113,15 +149,56 @@ class Assistant:
             self.console.print("[bold blue]Execution Phase:[/]")
             
             # Get execution result
-            response = self.message_processor.process_with_reasoning(message, reasoning)
-            return response
+            try:
+                response = self.message_processor.process_with_reasoning(message, reasoning)
+                self.logger.log_info(
+                    "Message processing completed successfully",
+                    {"response_type": type(response).__name__}
+                )
+                return response
+            except Exception as e:
+                raise MessageProcessingError(
+                    message="Failed during execution phase",
+                    phase="execution",
+                    details={"error": str(e)}
+                ) from e
             
-        except Exception as e:
-            error_message = f"I encountered an error while processing your message: {e}. Can you try rephrasing your request?"
+        except AssistantError as e:
+            # Handle known errors
+            error_info = self.error_handler.handle_error(e, {
+                "message": message,
+                "last_reasoning": self.last_reasoning
+            })
+            
+            error_message = f"I encountered an error while processing your message: {e}"
             self.console.print(f"[error]Message processing error: {e}[/]")
             self.add_msg_assistant(error_message)
             self.display.print_ai(error_message)
-            return {"error": str(e)}
+            
+            return {
+                "error": str(e),
+                "error_info": error_info
+            }
+            
+        except Exception as e:
+            # Handle unexpected errors
+            error_info = self.error_handler.handle_error(e, {
+                "message": message,
+                "last_reasoning": self.last_reasoning
+            })
+            
+            error_message = (
+                "I encountered an unexpected error. This has been logged "
+                "and will be investigated. Please try again or rephrase your request."
+            )
+            self.console.print(f"[error]Unexpected error: {e}[/]")
+            self.add_msg_assistant(error_message)
+            self.display.print_ai(error_message)
+            
+            return {
+                "error": "unexpected_error",
+                "error_info": error_info
+            }
 
     def get_completion(self) -> Any:
         """Get a completion from the model with the current messages and tools."""
