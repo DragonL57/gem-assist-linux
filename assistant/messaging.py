@@ -2,23 +2,34 @@
 Message processing and conversation flow management.
 """
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import traceback
-import config as conf
+
+from config import get_config
 
 class MessageProcessor:
     """Handles message processing and conversation flow."""
     
-    def __init__(self, assistant):
+    def __init__(
+        self,
+        assistant,
+        temperature: Optional[float] = None,
+        top_p: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        seed: Optional[int] = None
+    ):
         """Initialize with parent assistant reference."""
         self.assistant = assistant
         
-        # Model parameters
-        self.temperature = conf.TEMPERATURE
-        self.top_p = conf.TOP_P
-        self.max_tokens = conf.MAX_TOKENS or 8192
-        self.seed = conf.SEED
-        self.safety_settings = conf.SAFETY_SETTINGS
+        # Get configuration
+        config = get_config()
+        
+        # Model parameters (use passed values or config defaults)
+        self.temperature = temperature if temperature is not None else config.settings.TEMPERATURE
+        self.top_p = top_p if top_p is not None else config.settings.TOP_P
+        self.max_tokens = max_tokens if max_tokens is not None else config.settings.MAX_TOKENS
+        self.seed = seed if seed is not None else config.settings.SEED
+        self.safety_settings = config.safety_settings
         
     def process_with_reasoning(self, message: str, reasoning: str) -> Dict[str, Any]:
         """Process a user message with the reasoning already generated."""
@@ -28,7 +39,7 @@ class MessageProcessor:
         # Add the base execution system prompt
         execution_messages.append({
             "role": "system", 
-            "content": f"{conf.EXECUTION_SYSTEM_PROMPT}\n\nYour reasoning plan: {reasoning}"
+            "content": f"{get_config().execution_prompt}\n\nYour reasoning plan: {reasoning}"
         })
         
         # Add the conversation history (except the system message)

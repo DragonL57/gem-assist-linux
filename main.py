@@ -84,16 +84,17 @@ def _display_registration_report(console: Console, discovery_result: Dict[str, A
     
     console.print()
 
-def _run_interaction_loop(session: PromptSession, assistant: Assistant) -> None:
+async def _run_interaction_loop(session: PromptSession, assistant: Assistant) -> None:
     """Run the main interaction loop."""
     console = Console()
-    
+
     while True:
         try:
             # Get user input with proper styling on a new line
             console.print()
             console.print("[bold magenta]You:[/]")  # Explicitly use bold magenta for emphasis
-            msg = session.prompt(" ")  # Add a space for slight indentation
+            loop = asyncio.get_running_loop()
+            msg = await loop.run_in_executor(None, session.prompt, " ")  # Run in executor
             
             if not msg:
                 continue
@@ -120,7 +121,7 @@ def _run_interaction_loop(session: PromptSession, assistant: Assistant) -> None:
             console.print(f"[error]An error occurred: {e}[/]")
             traceback.print_exc()
 
-def main():
+async def main():
     """Main entry point for the assistant."""
     colorama.init(autoreset=True)
     console = Console()
@@ -164,13 +165,13 @@ def main():
     )
 
     # Create the system instruction
-    sys_instruct = conf.get_system_prompt().strip()
+    sys_instruct = conf.BASE_SYSTEM_PROMPT.strip()
 
     # Initialize the assistant
     assistant = Assistant(
-        model=conf.MODEL, 
+        model=conf.MODEL,
         name=conf.NAME,
-        system_instruction=sys_instruct, 
+        system_instruction=sys_instruct,
         discover_plugins_on_start=False,  # Already discovered
     )
 
@@ -184,7 +185,8 @@ def main():
     )
 
     # Main interaction loop
-    _run_interaction_loop(session, assistant)
+    await _run_interaction_loop(session, assistant)
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

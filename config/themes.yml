@@ -1,0 +1,28 @@
+---
+default:
+  PRIMARY: "#584ea8"
+  SECONDARY: "#4a4464"
+  ACCENT: "#7c6f9f"
+  BACKGROUND: "#f5f5f5"
+  TEXT: "#333333"
+
+dark:
+  PRIMARY: "#7c6f9f"
+  SECONDARY: "#4a4464"
+  ACCENT: "#584ea8"
+  BACKGROUND: "#1e1e1e"
+  TEXT: "#ffffff"
+  
+high_contrast:
+  PRIMARY: "#0066cc"
+  SECONDARY: "#004080"
+  ACCENT: "#0088ff"
+  BACKGROUND: "#ffffff"
+  TEXT: "#000000"
+  
+terminal:
+  PRIMARY: "#00ff00"
+  SECONDARY: "#008800"
+  ACCENT: "#00aa00"
+  BACKGROUND: "#000000"
+  TEXT: "#00ff00"

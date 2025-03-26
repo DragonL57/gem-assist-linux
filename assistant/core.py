@@ -57,64 +57,87 @@ class Assistant:
 
     def __init__(
         self,
-        model: str,
-        name: str = "Assistant",
+        model: Optional[str] = None,
+        name: Optional[str] = None,
         tools: List[Callable] = None,
         system_instruction: str = "",
         discover_plugins_on_start: bool = True,
-        log_level: int = logging.INFO
+        log_level: Optional[int] = None
     ) -> None:
         """Initialize the assistant with model and tools."""
         try:
-            self.model = model
-            self.name = name
-            self.system_instruction = system_instruction
-            self.messages = []
-            
-            # Initialize error handling and logging
-            self.error_handler = ErrorHandler()
-            self.logger = AssistantLogger(log_level=log_level)
-            
-            # Discover and register plugins if requested
-            if discover_plugins_on_start:
-                discover_plugins()
-                
-            # Get tools from registry and combine with explicitly provided tools
-            registry = get_registry()
-            registry_tools = list(registry.get_tools().values())
-            
-            if tools is None:
-                tools = registry_tools
-            else:
-                # Combine explicit tools with registered tools, avoiding duplicates
-                registry_tool_names = {t.__name__ for t in registry_tools}
-                explicit_tools = [t for t in tools if t.__name__ not in registry_tool_names]
-                tools = registry_tools + explicit_tools
-            
-            self.available_functions = {func.__name__: func for func in tools}
-            # Ensure vertex compatibility for all tools
-            self.tools = [function_to_json_schema(func, vertex_compatible=True) for func in tools]
-            self.console = Console(theme=CUSTOM_THEME)
-            self.last_reasoning = None
-
-            # Initialize components using dependency injection
-            self.display = AssistantDisplay(self)
-            self.message_processor = MessageProcessor(self)
-            self.reasoning_engine = ReasoningEngine(self)
-            self.tool_executor = ToolExecutor(self)
-            self.session_manager = SessionManager(self)
-            self.type_converter = TypeConverter()
+            self._initialize_configuration(model, name, system_instruction)
+            self._initialize_logging(log_level)
+            self._discover_and_register_plugins(discover_plugins_on_start, tools)
+            self._initialize_components()
 
             # Add system instruction if provided
             if system_instruction:
                 self.messages.append({"role": "system", "content": system_instruction})
-                
+
         except Exception as e:
             raise ConfigurationError(
                 f"Failed to initialize assistant: {str(e)}",
                 details={"init_error": str(e)}
             ) from e
-            
+
+    def _initialize_configuration(self, model, name, system_instruction):
+        """Initialize configuration settings."""
+        from config import get_config
+        config = get_config()
+
+        # Use config values or override with parameters
+        self.model = model or config.settings.MODEL
+        self.name = name or config.settings.NAME
+        self.system_instruction = system_instruction
+        self.messages = []
+        self.console = Console(theme=CUSTOM_THEME)
+        self.last_reasoning = None
+
+    def _initialize_logging(self, log_level):
+        """Initialize logging and error handling."""
+        # Initialize error handling and logging
+        self.error_handler = ErrorHandler()
+        self.logger = AssistantLogger(log_level=log_level or logging.INFO)
+
+    def _discover_and_register_plugins(self, discover_plugins_on_start, tools):
+        """Initialize plugin discovery and tool registration."""
+        # Discover plugins if requested
+        if discover_plugins_on_start:
+            discover_plugins()
+
+        # Register tools and combine lists
+        registry = get_registry()
+        registry_tools = list(registry.get_tools().values())
+        if tools is None:
+            tools = registry_tools
+        else:
+            registry_tool_names = {t.__name__ for t in registry_tools}
+            explicit_tools = [
+                tool for tool in tools if tool.__name__ not in registry_tool_names
+            ]
+            tools = registry_tools + explicit_tools
+
+        self.available_functions = {func.__name__: func for func in tools}
+        self.tools = [
+            function_to_json_schema(func, vertex_compatible=True) for func in tools
+        ]
+
+    def _initialize_components(self):
+        """Initialize core components."""
+        from config import get_config
+        config = get_config()
+        theme = config.get_theme()  # Get default theme
+
+        # Initialize components using dependency injection
+        self.console = Console(theme=Theme(theme))
+        self.display = AssistantDisplay(self)
+        self.message_processor = MessageProcessor(self)
+        self.reasoning_engine = ReasoningEngine(self)
+        self.tool_executor = ToolExecutor(self)
+        self.session_manager = SessionManager(self)
+        self.type_converter = TypeConverter()
+
 
     def send_message(self, message: str) -> Dict[str, Any]:
         """
