@@ -113,8 +113,47 @@ class ToolExecutor:
                     function_args[param_name] = self.assistant.type_converter.convert_to_pydantic_model(
                         param.annotation, function_args[param_name]
                     )
-                    
+                elif param.default is inspect.Parameter.empty and param.kind != inspect.Parameter.VAR_KEYWORD:
+                    raise ToolExecutionError(
+                        message=f"Missing required argument: {param_name}",
+                        tool_name=function.__name__,
+                        tool_args=arguments_json,
+                        details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id, "missing_argument": param_name}
+                    )
+
+
+            # Validate argument types against annotations
+            for param_name, param in sig.parameters.items():
+                if param_name in function_args:
+                    expected_type = param.annotation
+                    arg_value = function_args[param_name]
+
+                    if expected_type != inspect.Parameter.empty and not isinstance(arg_value, expected_type):
+                        raise ToolExecutionError(
+                            message=f"Invalid argument type for '{param_name}'. Expected '{expected_type.__name__}', got '{type(arg_value).__name__}'",
+                            tool_name=function.__name__,
+                            tool_args=arguments_json,
+                            details={
+                                "function_name": function.__name__,
+                                "arguments_json": arguments_json,
+                                "tool_call_id": context.tool_call_id,
+                                "param_name": param_name,
+                                "expected_type": expected_type.__name__,
+                                "actual_type": type(arg_value).__name__
+                            }
+                        )
+
+
             return function_args
+        except json.JSONDecodeError as e:
+            raise ToolExecutionError(
+                message=f"Invalid JSON arguments: {str(e)}",
+                tool_name=function.__name__,
+                tool_args=arguments_json,
+                details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
+            ) from e
+        except ToolExecutionError as e:
+            raise e # Re-raise ToolExecutionError to avoid double wrapping
         except Exception as e:
             raise ToolExecutionError(
                 message=f"Failed to process arguments: {str(e)}",
@@ -122,7 +161,7 @@ class ToolExecutor:
                 tool_args=arguments_json,
                 details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
             ) from e
-            
+
     def _get_result_handler(self, result: Any, tool_name: str) -> ToolResultHandler:
         """Get the appropriate result handler for the given result."""
         if tool_name in self.search_tool_names:
