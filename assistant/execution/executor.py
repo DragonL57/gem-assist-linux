@@ -1,10 +1,11 @@
 """
-Tool execution engine for the assistant.
+Tool execution engine for the assistant with async support.
 """
 import json
 import time
 import inspect
-from typing import Any, Dict, List, Callable, Optional, Type
+import asyncio
+from typing import Any, Dict, List, Callable, Optional, Type, Union, Coroutine, Tuple
 from dataclasses import dataclass
 
 from .display_manager import ToolDisplayManager, DisplayConfig
@@ -50,8 +51,8 @@ class ToolExecutor:
         # Search tool names (could be loaded from config)
         self.search_tool_names = {"web_search", "reddit_search"}
         
-    def execute_tool_call(self, tool_call: Any) -> None:
-        """Execute a single tool call and handle the result.
+    async def execute_tool_call(self, tool_call: Any) -> None:
+        """Execute a single tool call and handle the result asynchronously.
         
         Args:
             tool_call: Tool call information
@@ -65,37 +66,54 @@ class ToolExecutor:
         )
 
         # Validate and get function
-        function_to_call = self._get_tool_function(context.name)
-        if not function_to_call:
+        function_info = self._get_tool_function(context.name)
+        if not function_info[0]:
             self.display.display_missing_tool(context.name)
-            self._handle_missing_tool(context)
+            await self._handle_missing_tool(context)
             return
+
+        function_to_call, is_async = function_info
 
         try:
             # Process arguments
-            context.args = self._prepare_arguments(function_to_call, tool_call.function.arguments)
+            context.args = await self._prepare_arguments(function_to_call, tool_call.function.arguments, context)
             self.display.display_tool_call(context.name, context.args)
             
             # Execute function
             self.display.display_start_execution(context.name)
-            result = function_to_call(**context.args)
+            
+            # Handle both async and sync functions
+            if is_async:
+                result = await function_to_call(**context.args)
+            else:
+                # Run sync functions in thread pool to avoid blocking
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, lambda: function_to_call(**context.args))
             
             # Process and display result
-            self._handle_successful_result(result, context)
+            await self._handle_successful_result(result, context)
             
         except Exception as e:
-            self._handle_execution_error(e, context)
+            await self._handle_execution_error(e, context)
             
-    def _get_tool_function(self, name: str) -> Optional[Callable]:
-        """Get the tool function by name."""
-        return self.assistant.available_functions.get(name)
+    def _get_tool_function(self, name: str) -> Tuple[Optional[Union[Callable, Coroutine]], bool]:
+        """Get the tool function by name and determine if it's async.
+        
+        Returns:
+            Tuple of (function, is_async)
+        """
+        function = self.assistant.available_functions.get(name)
+        if function:
+            return function, inspect.iscoroutinefunction(function)
+        return None, False
             
-    def _prepare_arguments(self, function: Callable, arguments_json: str) -> Dict[str, Any]:
+    async def _prepare_arguments(self, function: Callable, arguments_json: str, context: ToolExecutionContext) -> Dict[str, Any]:
         """Parse and convert function arguments to appropriate types.
         
         Args:
             function: The function to prepare arguments for
             arguments_json: JSON string of arguments
+            context: Tool execution context
             
         Returns:
             Dictionary of prepared arguments
@@ -110,9 +128,12 @@ class ToolExecutor:
             sig = inspect.signature(function)
             for param_name, param in sig.parameters.items():
                 if param_name in function_args:
-                    function_args[param_name] = self.assistant.type_converter.convert_to_pydantic_model(
-                        param.annotation, function_args[param_name]
-                    )
+                    # Handle async conversion if needed
+                    converter = self.assistant.type_converter.convert_to_pydantic_model
+                    if inspect.iscoroutinefunction(converter):
+                        function_args[param_name] = await converter(param.annotation, function_args[param_name])
+                    else:
+                        function_args[param_name] = converter(param.annotation, function_args[param_name])
                 elif param.default is inspect.Parameter.empty and param.kind != inspect.Parameter.VAR_KEYWORD:
                     raise ToolExecutionError(
                         message=f"Missing required argument: {param_name}",
@@ -151,7 +172,7 @@ class ToolExecutor:
                 details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
             ) from e
         except ToolExecutionError as e:
-            raise e # Re-raise ToolExecutionError to avoid double wrapping
+            raise e  # Re-raise ToolExecutionError to avoid double wrapping
         except Exception as e:
             raise ToolExecutionError(
                 message=f"Failed to process arguments: {str(e)}",
@@ -170,8 +191,8 @@ class ToolExecutor:
             return self.result_handlers["text"]
         return self.result_handlers["default"]
             
-    def _handle_successful_result(self, result: Any, context: ToolExecutionContext) -> None:
-        """Handle successful tool execution.
+    async def _handle_successful_result(self, result: Any, context: ToolExecutionContext) -> None:
+        """Handle successful tool execution asynchronously.
         
         Args:
             result: The result from tool execution
@@ -189,14 +210,10 @@ class ToolExecutor:
         self.display.display_tool_result(context.name, formatted_result)
         
         # Add to conversation history
-        self.assistant.add_toolcall_output(
-            context.tool_call_id,
-            context.name,
-            result
-        )
+        await self._add_to_history(context.tool_call_id, context.name, result)
         
-    def _handle_execution_error(self, error: Exception, context: ToolExecutionContext) -> None:
-        """Handle tool execution error.
+    async def _handle_execution_error(self, error: Exception, context: ToolExecutionContext) -> None:
+        """Handle tool execution error asynchronously.
         
         Args:
             error: The error that occurred
@@ -214,15 +231,11 @@ class ToolExecutor:
         # Display error
         self.display.display_tool_error(context.name, str(error))
 
-        # Add error to conversation history - use error message as content
-        self.assistant.add_toolcall_output(
-            context.tool_call_id,
-            context.name,
-            str(error)  # Content is error message
-        )
+        # Add error to conversation history
+        await self._add_to_history(context.tool_call_id, context.name, str(error))
 
-    def _handle_missing_tool(self, context: ToolExecutionContext) -> None:
-        """Handle missing tool error.
+    async def _handle_missing_tool(self, context: ToolExecutionContext) -> None:
+        """Handle missing tool error asynchronously.
 
         Args:
             context: Tool execution context
@@ -238,8 +251,14 @@ class ToolExecutor:
         self.display.display_tool_error(context.name, str(error))
 
         # Add to conversation history
-        self.assistant.add_toolcall_output(
-            context.tool_call_id,
-            context.name,
-            str(error)  # Content is error message
-        )
+        await self._add_to_history(context.tool_call_id, context.name, str(error))
+
+    async def _add_to_history(self, tool_call_id: str, name: str, content: Any) -> None:
+        """Add tool call output to conversation history asynchronously."""
+        add_output = self.assistant.add_toolcall_output
+        if inspect.iscoroutinefunction(add_output):
+            await add_output(tool_call_id, name, content)
+        else:
+            # Run sync function in thread pool
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: add_output(tool_call_id, name, content))

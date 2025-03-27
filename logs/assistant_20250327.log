@@ -60,3 +60,18 @@
 2025-03-27 18:33:37,653 - assistant - INFO - Message processing completed successfully
 2025-03-27 18:33:51,205 - assistant - INFO - Starting message processing
 2025-03-27 18:33:55,154 - assistant - INFO - Message processing completed successfully
+2025-03-27 18:45:41,456 - assistant - INFO - Starting message processing
+2025-03-27 18:45:43,673 - assistant.error_handling.error_handler - ERROR - Error: MessageProcessingError [MSG_PROCESSING_FAILURE] - [MSG_PROCESSING_FAILURE] Failed during reasoning phase
+Details: {'error': "object str can't be used in 'await' expression", 'phase': 'reasoning'}
+2025-03-27 18:47:05,498 - assistant - INFO - Starting message processing
+2025-03-27 18:47:10,763 - assistant.error_handling.error_handler - ERROR - Error: MessageProcessingError [MSG_PROCESSING_FAILURE] - [MSG_PROCESSING_FAILURE] Failed during execution phase
+Details: {'error': 'Response message must be a dict', 'phase': 'execution'}
+2025-03-27 18:47:46,515 - assistant - INFO - Starting message processing
+2025-03-27 18:50:41,315 - assistant - INFO - Starting message processing
+2025-03-27 18:50:41,315 - assistant - INFO - Starting message processing
+2025-03-27 18:54:32,063 - assistant - INFO - Starting message processing
+2025-03-27 18:54:32,063 - assistant - INFO - Starting message processing
+2025-03-27 18:54:40,570 - assistant - INFO - Message processing completed successfully
+2025-03-27 18:54:40,570 - assistant - INFO - Message processing completed successfully
+2025-03-27 18:58:32,342 - assistant - INFO - Starting message processing
+2025-03-27 18:58:42,035 - assistant - INFO - Message processing completed successfully

@@ -1,10 +1,10 @@
 """
-A System to let you add custom functions as commands
+A System to let you add custom functions as commands with async support.
 
 Example:
     ```py
     @cmd(["alias1", "alias2"], "Description of the command")
-    def command1():
+    async def command1():
         pass
 
     @cmd(["say_my_name"], "Says your name")
@@ -21,8 +21,9 @@ Example:
 
 """
 
-from typing import Callable, Any, Dict
+from typing import Callable, Any, Dict, Union, List, Coroutine
 from rich import print
+import inspect
 
 class InvalidCommand(Exception):
     pass
@@ -30,8 +31,7 @@ class InvalidCommand(Exception):
 class CommandNotFound(Exception):
     pass
 
-
-def cmd(aliases: list[str], help_msg: str = ""):
+def cmd(aliases: List[str], help_msg: str = ""):
     """
     A decorator to mark a function as a command.
 
@@ -45,24 +45,22 @@ def cmd(aliases: list[str], help_msg: str = ""):
     if len(aliases) == 0:
         raise ValueError("aliases must not be empty")
 
-    def decorator(func):
+    def decorator(func: Union[Callable, Coroutine]) -> Union[Callable, Coroutine]:
         func.aliases = aliases
         func.help = help_msg
+        func.is_async = inspect.iscoroutinefunction(func)
         return func
     return decorator
 
-
-
 class CommandExecuter:
-    
     """
-    Assign commands and handle execution
+    Assign commands and handle execution with async support.
 
     ```
     from gem.commands import cmd, CommandExecuter
 
     @cmd(["say_my_name"], "Says your name")
-    def say_my_name(name: str):
+    async def say_my_name(name: str):
         ""\"
         Args:
             name: The name to say
@@ -74,11 +72,11 @@ class CommandExecuter:
     ```
     """
 
-    __available_commands: Dict[str, Callable] = {} 
+    __available_commands: Dict[str, Union[Callable, Coroutine]] = {} 
     command_prefix = "/"
 
     @staticmethod
-    def register_commands(commands: list[Callable]) -> None:
+    def register_commands(commands: List[Union[Callable, Coroutine]]) -> None:
         """Registers a command and its aliases."""
         for command in commands:
             if hasattr(command, 'aliases') and command.aliases is not None:
@@ -91,11 +89,11 @@ class CommandExecuter:
                 raise InvalidCommand(f"Command {command.__name__} must have at least one alias")
 
     @staticmethod
-    def get_commands() -> Dict[str, Callable]:
+    def get_commands() -> Dict[str, Union[Callable, Coroutine]]:
         return CommandExecuter.__available_commands
 
     @staticmethod
-    def execute(command: str) -> Any | None:
+    def execute(command: str) -> Any:
         """Executes a command.
 
         Args:
@@ -103,6 +101,7 @@ class CommandExecuter:
 
         Returns:
             The result of the command, or None.
+            For async commands, returns a coroutine that must be awaited.
 
         Raises:
             InvalidCommand: If the command string is invalid.
@@ -129,7 +128,24 @@ class CommandExecuter:
             print(command_to_call.__doc__ or "") 
             return None
 
+        # Call the function and return the result
+        # If it's async, the caller is responsible for awaiting the result
         return command_to_call(*command_args)
+
+    @staticmethod
+    def is_async_command(command_name: str) -> bool:
+        """Check if a command is async.
+
+        Args:
+            command_name: The name of the command to check.
+
+        Returns:
+            True if the command is async, False if sync or not found.
+        """
+        command = CommandExecuter.__available_commands.get(command_name)
+        if command:
+            return getattr(command, 'is_async', False)
+        return False
 
     @staticmethod
     def help(command_name: str) -> str | None:
@@ -138,5 +154,7 @@ class CommandExecuter:
         if command_func:
             help_text = getattr(command_func, "help", "")
             help_text += "  " + command_func.__doc__ or ""
+            if getattr(command_func, 'is_async', False):
+                help_text = "[async] " + help_text
             return help_text
         return None

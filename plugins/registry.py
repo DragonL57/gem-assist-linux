@@ -1,7 +1,8 @@
 """
-Registry for tools with capability manifests.
+Registry for tools with capability manifests and async support.
 """
-from typing import Dict, List, Callable, Any, Optional, Set, Tuple
+from typing import Dict, List, Callable, Any, Optional, Set, Tuple, Union, Coroutine
+import inspect
 
 class ToolRegistry:
     """
@@ -12,7 +13,7 @@ class ToolRegistry:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(ToolRegistry, cls).__new__(cls)
-            cls._instance._tools: Dict[str, Callable] = {}
+            cls._instance._tools: Dict[str, Union[Callable, Coroutine]] = {}
             cls._instance._capabilities: Dict[str, Dict[str, Any]] = {}
             cls._instance._categories: Dict[str, Set[str]] = {}
             
@@ -21,12 +22,12 @@ class ToolRegistry:
             cls._instance._plugin_errors: Dict[str, str] = {}
         return cls._instance
     
-    def register_tool(self, func: Callable, capabilities: Dict[str, Any] = None) -> bool:
+    def register_tool(self, func: Union[Callable, Coroutine], capabilities: Dict[str, Any] = None) -> bool:
         """
         Register a tool function with its capabilities.
         
         Args:
-            func: The function to register
+            func: The function to register (can be async or sync)
             capabilities: Tool capabilities
             
         Returns:
@@ -43,6 +44,11 @@ class ToolRegistry:
             # Store capabilities
             if capabilities is None:
                 capabilities = {}
+
+            # Auto-detect async status if not specified
+            if "is_async" not in capabilities:
+                capabilities["is_async"] = inspect.iscoroutinefunction(func)
+            
             self._capabilities[name] = capabilities
             
             # Update categories
@@ -57,6 +63,37 @@ class ToolRegistry:
         except Exception as e:
             self._registration_errors[name] = str(e)
             return False
+    
+    def is_async_tool(self, name: str) -> bool:
+        """
+        Check if a tool is asynchronous.
+        
+        Args:
+            name: Name of the tool
+            
+        Returns:
+            True if the tool is async, False if sync or not found
+        """
+        capabilities = self.get_capabilities(name)
+        return capabilities.get("is_async", False)
+
+    def get_async_tools(self) -> List[str]:
+        """
+        Get names of all async tools.
+        
+        Returns:
+            List of tool names that are asynchronous
+        """
+        return [name for name, caps in self._capabilities.items() if caps.get("is_async", False)]
+
+    def get_sync_tools(self) -> List[str]:
+        """
+        Get names of all synchronous tools.
+        
+        Returns:
+            List of tool names that are synchronous
+        """
+        return [name for name, caps in self._capabilities.items() if not caps.get("is_async", False)]
     
     def register_plugin_error(self, plugin_name: str, error: str) -> None:
         """
@@ -75,21 +112,28 @@ class ToolRegistry:
         Returns:
             Dictionary with registration status information
         """
+        async_tools = self.get_async_tools()
+        sync_tools = self.get_sync_tools()
+        
         return {
             "total_tools": len(self._tools),
+            "async_tools": len(async_tools),
+            "sync_tools": len(sync_tools),
             "total_categories": len(self._categories),
             "tools_by_category": {category: list(tools) for category, tools in self._categories.items()},
+            "async_tools_list": async_tools,
+            "sync_tools_list": sync_tools,
             "tool_errors": self._registration_errors,
             "plugin_errors": self._plugin_errors
         }
     
-    def get_tool(self, name: str) -> Optional[Callable]:
+    def get_tool(self, name: str) -> Optional[Union[Callable, Coroutine]]:
         """
         Get a registered tool by name.
         """
         return self._tools.get(name)
     
-    def get_tools(self) -> Dict[str, Callable]:
+    def get_tools(self) -> Dict[str, Union[Callable, Coroutine]]:
         """
         Get all registered tools.
         """

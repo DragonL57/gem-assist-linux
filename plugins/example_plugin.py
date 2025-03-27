@@ -1,132 +1,110 @@
 """
-Example plugin demonstrating the plugin architecture with input validation.
+Example plugin demonstrating both sync and async tools with error handling.
 """
-from plugins import Plugin, tool, capability, PluginError
-import os
-from typing import List, Dict, Any
-import pathlib
+import asyncio
+from typing import Optional, Dict, Any
+import aiohttp
 
-class FileSystemPlugin(Plugin):
-    """Plugin providing enhanced file system operations."""
+from plugins.base import Plugin, tool
+from assistant.exceptions.base import ToolExecutionError
+
+class ExamplePlugin(Plugin):
+    """Example plugin with both sync and async tools."""
     
-    @classmethod
-    def register(cls):
-        """Register all tool methods from this plugin."""
-        # The base implementation will automatically register
-        # methods decorated with @tool, but we could do custom
-        # registration here if needed
-        pass
-    
-    @staticmethod
-    @tool(
-        categories=["filesystem", "search"],
-        requires_filesystem=True,
-        example_usage="find_files_by_type('.txt', '/home/user')",
-        params={
-            "extension": {
-                "type": str,
-                "required": True,
-                "regex": r"^\.[a-zA-Z0-9]+$",
-                "custom": {
-                    "validator": lambda x: len(x) >= 2,
-                    "message": "Extension must be at least 2 characters (including dot)"
-                }
-            },
-            "directory": {
-                "type": str,
-                "required": False,
-                "custom": {
-                    "validator": lambda x: x is None or os.path.exists(x),
-                    "message": "Directory must exist"
-                }
-            }
+    @tool(params={
+        "name": {
+            "type": str,
+            "required": True,
+            "description": "The name to greet"
+        },
+        "delay": {
+            "type": float,
+            "required": False,
+            "default": 0.0,
+            "description": "Optional delay in seconds"
         }
-    )
-    def find_files_by_type(extension: str, directory: str = None) -> List[str]:
+    })
+    async def async_greet(self, name: str, delay: float = 0.0) -> str:
         """
-        Find all files with the specified extension in the directory.
+        Asynchronously greet someone, with an optional delay.
         
         Args:
-            extension: File extension to search for (e.g., '.txt')
-            directory: Directory to search in (default: current directory)
+            name: The name to greet
+            delay: Optional delay in seconds
             
         Returns:
-            List of file paths matching the extension
+            The greeting message
         """
-        try:
-            if directory is None:
-                directory = os.getcwd()
-                
-            results = []
-            
-            for root, _, files in os.walk(directory):
-                for file in files:
-                    if file.endswith(extension):
-                        results.append(os.path.join(root, file))
-                        
-            return results
-            
-        except Exception as e:
-            raise PluginError(f"Error finding files by type: {e}", plugin_name=FileSystemPlugin.__name__) from e
-    
-    @staticmethod
-    @tool(
-        categories=["filesystem", "metadata"],
-        requires_filesystem=True,
-        params={
-            "directory": {
-                "type": str,
-                "required": False, 
-                "custom": {
-                    "validator": lambda x: x is None or os.path.exists(x),
-                    "message": "Directory must exist"
-                }
-            },
-            "max_depth": {
-                "type": int,
-                "required": False,
-                "range": {
-                    "min": 1,
-                    "max": 10
-                }
-            }
+        if delay > 0:
+            await asyncio.sleep(delay)
+        return f"Hello {name}! (async greeting after {delay}s delay)"
+
+    @tool(params={
+        "url": {
+            "type": str,
+            "required": True,
+            "description": "URL to fetch"
         }
-    )
-    def get_directory_structure(directory: str = None, max_depth: int = 3) -> Dict[str, Any]:
+    })
+    async def fetch_url(self, url: str) -> str:
         """
-        Get a structured representation of a directory. 
+        Fetch content from a URL asynchronously.
+        Demonstrates proper async error handling.
         
         Args:
-            directory: Directory to analyze (default: current directory)
-            max_depth: Maximum depth to traverse
+            url: The URL to fetch
             
         Returns:
-            Dictionary representing the directory structure
+            The fetched content
+            
+        Raises:
+            ToolExecutionError: If the fetch fails
         """
         try:
-            if directory is None:
-                directory = os.getcwd()
-                
-            def scan_dir(path, depth=0):
-                if depth > max_depth:
-                    return "..."
-                    
-                result = {}
-                try:
-                    with os.scandir(path) as entries:
-                        for entry in entries:
-                            if entry.is_dir():
-                                result[entry.name] = scan_dir(entry.path, depth + 1)
-                            else:
-                                result[entry.name] = os.path.getsize(entry.path)
-                except PermissionError:
-                    return "Permission denied"
-                except Exception as e:
-                    return f"Error: {str(e)}"
-                    
-                return result
-                
-            return {os.path.basename(directory): scan_dir(directory)}
-            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    if response.status != 200:
+                        raise ToolExecutionError(
+                            message=f"Failed to fetch URL: {response.status}",
+                            tool_name=self.fetch_url.__name__,
+                            tool_args={"url": url},
+                            details={
+                                "status": response.status,
+                                "reason": response.reason
+                            }
+                        )
+                    return await response.text()
+        except aiohttp.ClientError as e:
+            raise ToolExecutionError(
+                message=f"Network error: {str(e)}",
+                tool_name=self.fetch_url.__name__,
+                tool_args={"url": url},
+                details={"error": str(e)}
+            ) from e
         except Exception as e:
-            raise PluginError(f"Error getting directory structure: {e}", plugin_name=FileSystemPlugin.__name__) from e
+            raise ToolExecutionError(
+                message=f"Unexpected error: {str(e)}",
+                tool_name=self.fetch_url.__name__,
+                tool_args={"url": url},
+                details={"error": str(e)}
+            ) from e
+
+    @tool(params={
+        "text": {
+            "type": str,
+            "required": True,
+            "description": "Text to echo"
+        }
+    })
+    def sync_echo(self, text: str) -> str:
+        """
+        Simply echo back the input text (synchronously).
+        Demonstrates sync tool handling.
+        
+        Args:
+            text: Text to echo back
+            
+        Returns:
+            The same text
+        """
+        return f"Echo: {text}"

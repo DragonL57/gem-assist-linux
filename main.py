@@ -5,6 +5,7 @@ Main entry point and backward compatibility exports.
 import os
 import inspect
 import traceback
+import asyncio
 from typing import Dict, Any, List  # Add the missing import
 from dotenv import load_dotenv
 import colorama
@@ -102,13 +103,16 @@ async def _run_interaction_loop(session: PromptSession, assistant: Assistant) ->
             # Handle commands
             if msg.startswith("/"):
                 try:
-                    CommandExecuter.execute(msg)
+                    command_result = CommandExecuter.execute(msg)
+                    # Handle async commands
+                    if inspect.iscoroutine(command_result):
+                        await command_result
                 except Exception as e:
                     console.print(f"[error]Command error: {e}[/]")
                 continue
             
             # Send the message to the assistant
-            assistant.send_message(msg)
+            await assistant.send_message(msg)
 
         except KeyboardInterrupt:
             console.print("\n\n[success]Chat session interrupted.[/]")

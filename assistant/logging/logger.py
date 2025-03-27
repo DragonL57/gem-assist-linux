@@ -6,7 +6,7 @@ import sys
 import os
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 class AssistantLogger:
     """Configures and manages logging for the assistant system."""
@@ -19,24 +19,30 @@ class AssistantLogger:
         backup_count: int = 5
     ):
         self.logger = logging.getLogger("assistant")
-        self.logger.setLevel(log_level)
         
-        # Create logs directory if it doesn't exist
-        os.makedirs(log_dir, exist_ok=True)
-        
-        # Generate log filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d")
-        log_file = os.path.join(log_dir, f"assistant_{timestamp}.log")
-        
-        # Create handlers
-        self.file_handler = self._create_file_handler(
-            log_file, log_level, max_bytes, backup_count
-        )
-        self.console_handler = self._create_console_handler(log_level)
-        
-        # Add handlers to logger
-        self.logger.addHandler(self.file_handler)
-        self.logger.addHandler(self.console_handler)
+        # Prevent adding handlers multiple times if logger already configured
+        if not self.logger.hasHandlers():
+            self.logger.setLevel(log_level)
+            
+            # Create logs directory if it doesn't exist
+            os.makedirs(log_dir, exist_ok=True)
+            
+            # Generate log filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d")
+            log_file = os.path.join(log_dir, f"assistant_{timestamp}.log")
+            
+            # Create handlers
+            self.file_handler = self._create_file_handler(
+                log_file, log_level, max_bytes, backup_count
+            )
+            self.console_handler = self._create_console_handler(log_level)
+            
+            # Add handlers to logger
+            self.logger.addHandler(self.file_handler)
+            self.logger.addHandler(self.console_handler)
+            
+            # Prevent propagation to root logger if necessary
+            self.logger.propagate = False
         
     def _create_file_handler(
         self,
@@ -107,21 +113,39 @@ class AssistantLogger:
         """
         return self.logger
 
-    def log_error(self, error_info: Dict[str, Any]) -> None:
+    def log_error(
+        self, 
+        message: Union[str, Dict[str, Any]], 
+        details: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> None:
         """Log an error with full context.
         
         Args:
-            error_info: Dictionary containing error details
+            message: Either an error message string or a dictionary containing error details
+            details: Optional dictionary of additional details
+            **kwargs: Additional keyword arguments for error context
         """
-        self.logger.error(
-            error_info["message"],
-            extra={
+        if isinstance(message, dict):
+            # Handle dictionary input format
+            error_info = message
+            log_message = error_info.get("message", "Unknown error")
+            extra_data = {
                 "error_type": error_info.get("error_type"),
-                "error_code": error_info.get("error_code"),
                 "details": error_info.get("details"),
                 "context": error_info.get("context")
             }
-        )
+        else:
+            # Handle string message format
+            log_message = message
+            extra_data = {
+                "details": details or {},
+                **kwargs
+            }
+            
+        # Ensure extra_data is serializable if needed later, though logging handles it
+        self.logger.error(log_message, extra=extra_data)
+
 
     def log_warning(self, warning: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Log a warning with optional details.
