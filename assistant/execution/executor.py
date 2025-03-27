@@ -108,7 +108,7 @@ class ToolExecutor:
         return None, False
             
     async def _prepare_arguments(self, function: Callable, arguments_json: str, context: ToolExecutionContext) -> Dict[str, Any]:
-        """Parse and convert function arguments to appropriate types.
+        """Parse and convert function arguments to appropriate types with enhanced validation.
         
         Args:
             function: The function to prepare arguments for
@@ -119,38 +119,92 @@ class ToolExecutor:
             Dictionary of prepared arguments
             
         Raises:
-            ToolExecutionError: If argument processing fails
+            ToolExecutionError: If argument processing or validation fails
         """
         try:
-            function_args = json.loads(arguments_json)
+            # First validate that we have valid JSON
+            if not arguments_json or not isinstance(arguments_json, str):
+                raise ToolExecutionError(
+                    message="Invalid arguments: arguments must be a non-empty JSON string",
+                    tool_name=function.__name__,
+                    tool_args=str(arguments_json),
+                    details={"function_name": function.__name__, "tool_call_id": context.tool_call_id}
+                )
             
-            # Convert arguments based on function signature annotations
+            try:
+                function_args = json.loads(arguments_json)
+            except json.JSONDecodeError as e:
+                raise ToolExecutionError(
+                    message=f"Invalid JSON arguments: {str(e)}",
+                    tool_name=function.__name__,
+                    tool_args=arguments_json,
+                    details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
+                ) from e
+                
+            # Validate that function_args is a dictionary
+            if not isinstance(function_args, dict):
+                raise ToolExecutionError(
+                    message=f"Arguments must be a JSON object/dictionary, got {type(function_args).__name__}",
+                    tool_name=function.__name__,
+                    tool_args=arguments_json,
+                    details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
+                )
+            
+            # Get function signature
             sig = inspect.signature(function)
+            
+            # Check for unexpected arguments (could be typos or incorrect keys)
+            unexpected_args = set(function_args.keys()) - {p.name for p in sig.parameters.values()}
+            if unexpected_args:
+                raise ToolExecutionError(
+                    message=f"Unexpected arguments: {', '.join(unexpected_args)}",
+                    tool_name=function.__name__,
+                    tool_args=arguments_json,
+                    details={
+                        "function_name": function.__name__, 
+                        "arguments_json": arguments_json, 
+                        "tool_call_id": context.tool_call_id,
+                        "unexpected_args": list(unexpected_args),
+                        "expected_args": [p.name for p in sig.parameters.values()]
+                    }
+                )
+                
+            # Check for required arguments and validate types
             for param_name, param in sig.parameters.items():
-                if param_name in function_args:
-                    # Handle async conversion if needed
-                    converter = self.assistant.type_converter.convert_to_pydantic_model
-                    if inspect.iscoroutinefunction(converter):
-                        function_args[param_name] = await converter(param.annotation, function_args[param_name])
-                    else:
-                        function_args[param_name] = converter(param.annotation, function_args[param_name])
-                elif param.default is inspect.Parameter.empty and param.kind != inspect.Parameter.VAR_KEYWORD:
+                # Check if required parameter is missing
+                if param_name not in function_args and param.default is inspect.Parameter.empty and param.kind != inspect.Parameter.VAR_KEYWORD:
                     raise ToolExecutionError(
                         message=f"Missing required argument: {param_name}",
                         tool_name=function.__name__,
                         tool_args=arguments_json,
                         details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id, "missing_argument": param_name}
                     )
-
-            # Validate argument types against annotations
-            for param_name, param in sig.parameters.items():
+                
+                # Skip validation if parameter is not provided (will use default)
+                if param_name not in function_args:
+                    continue
+                    
+                # Validate that argument is not None for non-optional parameters
+                if function_args[param_name] is None and param.default is inspect.Parameter.empty:
+                    raise ToolExecutionError(
+                        message=f"Argument '{param_name}' cannot be null/None",
+                        tool_name=function.__name__,
+                        tool_args=arguments_json,
+                        details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id, "param_name": param_name}
+                    )
+                
+                # If parameter has a value, convert it based on annotation
                 if param_name in function_args:
-                    expected_type = param.annotation
-                    arg_value = function_args[param_name]
-
-                    if expected_type != inspect.Parameter.empty and not isinstance(arg_value, expected_type):
+                    # Handle conversion before validation
+                    try:
+                        converter = self.assistant.type_converter.convert_to_pydantic_model
+                        if inspect.iscoroutinefunction(converter):
+                            function_args[param_name] = await converter(param.annotation, function_args[param_name])
+                        else:
+                            function_args[param_name] = converter(param.annotation, function_args[param_name])
+                    except Exception as e:
                         raise ToolExecutionError(
-                            message=f"Invalid argument type for '{param_name}'. Expected '{expected_type.__name__}', got '{type(arg_value).__name__}'",
+                            message=f"Failed to convert argument '{param_name}': {str(e)}",
                             tool_name=function.__name__,
                             tool_args=arguments_json,
                             details={
@@ -158,19 +212,34 @@ class ToolExecutor:
                                 "arguments_json": arguments_json,
                                 "tool_call_id": context.tool_call_id,
                                 "param_name": param_name,
-                                "expected_type": expected_type.__name__,
-                                "actual_type": type(arg_value).__name__
+                                "expected_type": str(param.annotation) if param.annotation != inspect.Parameter.empty else "any",
+                                "value_received": str(function_args[param_name]),
+                                "value_type": type(function_args[param_name]).__name__
                             }
-                        )
-
+                        ) from e
+                    
+                    # Validate argument type if annotation exists
+                    if param.annotation != inspect.Parameter.empty:
+                        arg_value = function_args[param_name]
+                        # Skip None values for Optional types
+                        if arg_value is not None and not isinstance(arg_value, param.annotation):
+                            raise ToolExecutionError(
+                                message=f"Invalid argument type for '{param_name}'. Expected '{param.annotation.__name__}', got '{type(arg_value).__name__}'",
+                                tool_name=function.__name__,
+                                tool_args=arguments_json,
+                                details={
+                                    "function_name": function.__name__,
+                                    "arguments_json": arguments_json,
+                                    "tool_call_id": context.tool_call_id,
+                                    "param_name": param_name,
+                                    "expected_type": param.annotation.__name__,
+                                    "actual_type": type(arg_value).__name__,
+                                    "value": str(arg_value)
+                                }
+                            )
+            
             return function_args
-        except json.JSONDecodeError as e:
-            raise ToolExecutionError(
-                message=f"Invalid JSON arguments: {str(e)}",
-                tool_name=function.__name__,
-                tool_args=arguments_json,
-                details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
-            ) from e
+            
         except ToolExecutionError as e:
             raise e  # Re-raise ToolExecutionError to avoid double wrapping
         except Exception as e:
