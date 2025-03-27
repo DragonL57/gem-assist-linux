@@ -119,7 +119,8 @@ class ToolExecutor:
             raise ToolExecutionError(
                 message=f"Failed to process arguments: {str(e)}",
                 tool_name=function.__name__,
-                tool_args=arguments_json
+                tool_args=arguments_json,
+                details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id}
             ) from e
             
     def _get_result_handler(self, result: Any, tool_name: str) -> ToolResultHandler:
@@ -171,30 +172,33 @@ class ToolExecutor:
                 tool_name=context.name,
                 tool_args=context.args
             )
-            
+
         # Display error
         self.display.display_tool_error(context.name, str(error))
-        
+
         # Add error to conversation history
         self.assistant.add_toolcall_output(
             context.tool_call_id,
             context.name,
-            str(error)
+            str(error),
+            error_details=context.args
         )
-        
+
     def _handle_missing_tool(self, context: ToolExecutionContext) -> None:
         """Handle missing tool error.
-        
+
         Args:
             context: Tool execution context
         """
         error = ToolExecutionError(
             message=f"Tool not found: {context.name}",
             tool_name=context.name,
-            tool_args={}
+            tool_args={},
+            details={"tool_call_id": context.tool_call_id, "tool_name": context.name} # Add context details for missing tool
         )
         self.assistant.add_toolcall_output(
             context.tool_call_id,
             context.name,
-            str(error)
+            str(error),
+            error_details={"tool_name": context.name, "tool_call_id": context.tool_call_id} # Add tool name to error details
         )
