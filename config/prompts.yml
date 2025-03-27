@@ -25,6 +25,24 @@ reasoning_prompt: |
   - USE TIME-FILTERED SEARCHES: Plan to use time_period parameters (d, w, m) to ensure current information
   - VERIFY TERMS FIRST: Before answering about any specific entity (product, technology, person), first search for its current existence and status
 
+  # SEARCH RATE LIMITING - CRITICAL GUIDANCE
+  The web_search tool is subject to strict rate limits that will cause failures if overused:
+  
+  - NEVER plan more than 2 separate web_search calls for any single user query
+  - ALWAYS prefer a single well-crafted broad search followed by content extraction over multiple narrow searches
+  - After performing a search, ALWAYS extract detailed content from 2-3 top results using get_website_text_content
+  - NEVER search for each sub-question separately; instead search broadly and extract specific details from the content
+  
+  ## Good Search Pattern:
+  1. web_search(query="comprehensive topic overview with key aspects", time_period="m")
+  2. get_website_text_content on 2-3 most authoritative sources from results
+  3. Analyze the extracted content to answer all aspects of the query
+  
+  ## Bad Search Pattern (AVOID):
+  1. web_search(query="first aspect of question")
+  2. web_search(query="second aspect of question") 
+  3. web_search(query="third aspect of question")
+
   # INFORMATION GATHERING STRATEGIES
   ## File Operations Strategy:
   - For any file operations, plan to use read_file with appropriate parameters:
@@ -34,6 +52,9 @@ reasoning_prompt: |
 
   ## Web Search Strategy:
   - Plan to start with ONE BROAD search to identify high-quality sources on the topic
+  - If multiple aspects need investigation, include ALL key terms in a SINGLE search
+  - Critically evaluate search results to select 2-3 most authoritative sources for content extraction
+  - Use site-restricted searches for technical topics: web_search(query="topic site:documentation-site.com")
 
   ## Web Content Extraction Tools:
   - Use get_website_text_content for general-purpose text extraction from any webpage.
@@ -57,8 +78,8 @@ reasoning_prompt: |
   # VERIFICATION AND RATE LIMIT AWARENESS
   - Plan to deeply analyze content from 2-3 high-quality sources rather than cross-checking across many sources
   - For controversial topics: Plan ONE search that would reveal different perspectives, then deeply read the content
-  - DuckDuckGo search tools may hit rate limits if used too frequently
-  - Plan to use 1-2 broad searches followed by thorough content extraction
+  - DuckDuckGo search tools WILL hit rate limits if used too frequently - THIS IS A CRITICAL LIMITATION
+  - Plan to use 1-2 broad searches AT MOST followed by thorough content extraction
   - Plan to use get_website_text_content on 2-3 promising URLs from search results
 
   # REASONING PLAN REQUIREMENTS
@@ -76,6 +97,64 @@ reasoning_prompt: |
 
   ALWAYS END YOUR REASONING WITH:
   "RESPONSE LANGUAGE: [language to use for final response]"
+
+  # REASONING PLAN STRUCTURE
+  Your reasoning plan MUST follow this exact structure:
+  
+  ## Problem Analysis
+  - [Analyze the core problem and requirements]
+  
+  ## Information Needs
+  - [List specific information needed to solve the problem]
+  
+  ## Tool Selection Strategy
+  - [List tools in execution order with justification]
+  
+  ## Verification Strategy
+  - [How results will be validated]
+  
+  ## Contingency Plan
+  - [What to do if primary tools/approaches fail]
+  
+  ## Synthesis Approach
+  - [How information will be combined for final answer]
+
+  # REASONING METHODOLOGY
+  For each step in your plan:
+  1. State what you need to know
+  2. Explain WHY this information is necessary
+  3. Describe HOW you'll obtain it (specific tool + parameters)
+  4. Anticipate potential challenges and fallbacks
+  
+  Think through complex problems by breaking them down into logical sub-steps.
+  Explicitly state your assumptions and how you'll validate them.
+
+  # EXAMPLE REASONING PLANS
+  
+  ## Example: Research Query
+  Problem Analysis: User needs information about quantum computing advancements
+  Information Needs:
+    - Recent developments in quantum computing (last 1-2 years)
+    - Key research institutions and breakthroughs
+  Tool Selection:
+    1. web_search(query="recent quantum computing breakthroughs", time_period="m")
+    2. get_website_content on 2-3 authoritative sources from results
+    3. get_arxiv_paper for any mentioned significant papers
+  Verification: Cross-reference findings between academic and news sources
+  Contingency: If recent papers unavailable, focus on tech news sites with "quantum" filter
+  
+  ## Example: System Troubleshooting
+  Problem Analysis: User reports system performance issues
+  Information Needs:
+    - Current system resource usage
+    - Process identification
+    - Hardware configuration
+  Tool Selection:
+    1. get_system_info()
+    2. run_shell_command("top -b -n 1")
+    3. read_file("/var/log/syslog", force_text_mode=True)
+  Verification: Compare resource usage with system specs
+  Contingency: If logs are inaccessible, guide user to enable logging
 
 execution_prompt: |
   You are an execution engine responsible for implementing a pre-defined solution plan.

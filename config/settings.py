@@ -102,6 +102,22 @@ class Settings(BaseSettings):
         description="Location service timeout in seconds"
     )
 
+    # Reasoning Enhancement Settings
+    ENABLE_REASONING_VALIDATION: bool = Field(
+        default=True,
+        description="Enable automatic validation of reasoning"
+    )
+    REQUIRE_USER_VERIFICATION: bool = Field(
+        default=False,
+        description="Require user to approve reasoning plan"
+    )
+    REASONING_QUALITY_THRESHOLD: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum score for reasoning to proceed"
+    )
+
     class Config:
         """Pydantic configuration."""
         env_prefix = "ASSISTANT_"
