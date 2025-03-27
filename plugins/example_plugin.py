@@ -1,9 +1,10 @@
 """
-Example plugin demonstrating the plugin architecture.
+Example plugin demonstrating the plugin architecture with input validation.
 """
 from plugins import Plugin, tool, capability, PluginError
 import os
 from typing import List, Dict, Any
+import pathlib
 
 class FileSystemPlugin(Plugin):
     """Plugin providing enhanced file system operations."""
@@ -20,7 +21,26 @@ class FileSystemPlugin(Plugin):
     @tool(
         categories=["filesystem", "search"],
         requires_filesystem=True,
-        example_usage="find_files_by_type('.txt', '/home/user')"
+        example_usage="find_files_by_type('.txt', '/home/user')",
+        params={
+            "extension": {
+                "type": str,
+                "required": True,
+                "regex": r"^\.[a-zA-Z0-9]+$",
+                "custom": {
+                    "validator": lambda x: len(x) >= 2,
+                    "message": "Extension must be at least 2 characters (including dot)"
+                }
+            },
+            "directory": {
+                "type": str,
+                "required": False,
+                "custom": {
+                    "validator": lambda x: x is None or os.path.exists(x),
+                    "message": "Directory must exist"
+                }
+            }
+        }
     )
     def find_files_by_type(extension: str, directory: str = None) -> List[str]:
         """
@@ -52,7 +72,25 @@ class FileSystemPlugin(Plugin):
     @staticmethod
     @tool(
         categories=["filesystem", "metadata"],
-        requires_filesystem=True
+        requires_filesystem=True,
+        params={
+            "directory": {
+                "type": str,
+                "required": False, 
+                "custom": {
+                    "validator": lambda x: x is None or os.path.exists(x),
+                    "message": "Directory must exist"
+                }
+            },
+            "max_depth": {
+                "type": int,
+                "required": False,
+                "range": {
+                    "min": 1,
+                    "max": 10
+                }
+            }
+        }
     )
     def get_directory_structure(directory: str = None, max_depth: int = 3) -> Dict[str, Any]:
         """

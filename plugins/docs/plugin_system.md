@@ -2,6 +2,30 @@
 
 This document explains how to use the new plugin architecture for tools in gem-assist.
 
+## Dependency Management
+
+Each plugin can specify its dependencies in the `plugins/requirements` directory:
+
+- `base.txt` contains core dependencies used by most plugins
+- Individual plugins have their own requirements files (e.g., `web_scraper_plugin.txt`)
+- Plugin requirements can extend from base using `-r base.txt`
+
+Example plugin requirements file:
+```txt
+-r base.txt
+
+# Plugin specific dependencies
+requests>=2.25.0
+beautifulsoup4>=4.9.0
+```
+
+Managing dependencies:
+1. When creating a new plugin, create a requirements file in `plugins/requirements/`
+2. Name it after your plugin (e.g., `my_plugin.txt`)
+3. Include `-r base.txt` if you need core dependencies
+4. List your plugin-specific dependencies with version constraints
+5. Use comments to organize and explain dependencies
+
 ## Overview
 
 The plugin system allows tools to self-register with capability manifests, making the system more modular and extensible. Instead of explicitly listing tools in a central location, tools now register themselves, allowing for:
