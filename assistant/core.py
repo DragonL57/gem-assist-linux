@@ -180,12 +180,12 @@ class Assistant:
                 )
                 return response
             except Exception as e:
-                raise MessageProcessingError(
-                    message="Failed during execution phase",
-                    phase="execution",
-                    details={"error": str(e)}
-                ) from e
-            
+                    raise MessageProcessingError(
+                        message="Failed during execution phase",
+                        phase="execution",
+                        details={"error": str(e)}
+                    ) from e
+
         except AssistantError as e:
             # Handle known errors
             error_info = self.error_handler.handle_error(e, {
@@ -260,7 +260,11 @@ class Assistant:
                 else:
                     raise
         
-        raise Exception("Failed to get completion after maximum retries")
+        raise APICallError(
+            message="Failed to get completion after maximum retries",
+            model_name=self.model,
+            retries=max_retries
+        )
 
     def add_msg_assistant(self, msg: str) -> None:
         """Add an assistant message to the conversation history."""
