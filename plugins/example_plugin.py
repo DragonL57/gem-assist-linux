@@ -1,7 +1,7 @@
 """
 Example plugin demonstrating the plugin architecture.
 """
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 import os
 from typing import List, Dict, Any
 
@@ -33,17 +33,21 @@ class FileSystemPlugin(Plugin):
         Returns:
             List of file paths matching the extension
         """
-        if directory is None:
-            directory = os.getcwd()
+        try:
+            if directory is None:
+                directory = os.getcwd()
+                
+            results = []
             
-        results = []
-        
-        for root, _, files in os.walk(directory):
-            for file in files:
-                if file.endswith(extension):
-                    results.append(os.path.join(root, file))
-                    
-        return results
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    if file.endswith(extension):
+                        results.append(os.path.join(root, file))
+                        
+            return results
+            
+        except Exception as e:
+            raise PluginError(f"Error finding files by type: {e}", plugin_name=FileSystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -52,7 +56,7 @@ class FileSystemPlugin(Plugin):
     )
     def get_directory_structure(directory: str = None, max_depth: int = 3) -> Dict[str, Any]:
         """
-        Get a structured representation of a directory.
+        Get a structured representation of a directory. 
         
         Args:
             directory: Directory to analyze (default: current directory)
@@ -61,24 +65,30 @@ class FileSystemPlugin(Plugin):
         Returns:
             Dictionary representing the directory structure
         """
-        if directory is None:
-            directory = os.getcwd()
-            
-        def scan_dir(path, depth=0):
-            if depth > max_depth:
-                return "..."
+        try:
+            if directory is None:
+                directory = os.getcwd()
                 
-            result = {}
-            try:
-                with os.scandir(path) as entries:
-                    for entry in entries:
-                        if entry.is_dir():
-                            result[entry.name] = scan_dir(entry.path, depth + 1)
-                        else:
-                            result[entry.name] = os.path.getsize(entry.path)
-            except PermissionError:
-                return "Permission denied"
+            def scan_dir(path, depth=0):
+                if depth > max_depth:
+                    return "..."
+                    
+                result = {}
+                try:
+                    with os.scandir(path) as entries:
+                        for entry in entries:
+                            if entry.is_dir():
+                                result[entry.name] = scan_dir(entry.path, depth + 1)
+                            else:
+                                result[entry.name] = os.path.getsize(entry.path)
+                except PermissionError:
+                    return "Permission denied"
+                except Exception as e:
+                    return f"Error: {str(e)}"
+                    
+                return result
                 
-            return result
+            return {os.path.basename(directory): scan_dir(directory)}
             
-        return {os.path.basename(directory): scan_dir(directory)}
+        except Exception as e:
+            raise PluginError(f"Error getting directory structure: {e}", plugin_name=FileSystemPlugin.__name__) from e

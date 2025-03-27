@@ -9,7 +9,7 @@ import datetime
 import concurrent.futures
 from typing import List, Dict, Any, Optional, Union
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
 class SystemPlugin(Plugin):
@@ -109,7 +109,7 @@ class SystemPlugin(Plugin):
             return info
             
         except Exception as e:
-            return {"error": str(e)}
+            raise PluginError(f"Error getting system info: {e}", plugin_name=SystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -119,7 +119,7 @@ class SystemPlugin(Plugin):
     )
     def run_shell_command(command: str, timeout: int = 30) -> Dict[str, Any]:
         """
-        Run a shell command and return the result.
+        Run a shell command and return the result. 
         
         Args:
             command: Shell command to execute
@@ -147,15 +147,12 @@ class SystemPlugin(Plugin):
                     "stderr": stderr,
                     "returncode": process.returncode
                 }
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as e:
                 process.kill()
-                return {
-                    "error": f"Command timed out after {timeout} seconds",
-                    "returncode": -1
-                }
+                raise PluginError(f"Command timed out after {timeout} seconds: {e}", plugin_name=SystemPlugin.__name__) from e
                 
         except Exception as e:
-            return {"error": str(e), "returncode": -1}
+            raise PluginError(f"Error running shell command: {e}", plugin_name=SystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -170,17 +167,21 @@ class SystemPlugin(Plugin):
         """
         tool_message_print("Getting current date and time")
         
-        now = datetime.datetime.now()
-        utc_now = datetime.datetime.utcnow()
-        
-        return {
-            "local_datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
-            "utc_datetime": utc_now.strftime("%Y-%m-%d %H:%M:%S"),
-            "local_date": now.strftime("%Y-%m-%d"),
-            "local_time": now.strftime("%H:%M:%S"),
-            "timezone": time.tzname[0],
-            "timestamp": int(time.time())
-        }
+        try:        
+            now = datetime.datetime.now()
+            utc_now = datetime.datetime.utcnow()
+            
+            return {
+                "local_datetime": now.strftime("%Y-%m-%d %H:%M:%S"),
+                "utc_datetime": utc_now.strftime("%Y-%m-%d %H:%M:%S"),
+                "local_date": now.strftime("%Y-%m-%d"),
+                "local_time": now.strftime("%H:%M:%S"),
+                "timezone": time.tzname[0],
+                "timestamp": int(time.time())
+            }
+            
+        except Exception as e:
+            raise PluginError(f"Error getting current datetime: {e}", plugin_name=SystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -198,28 +199,32 @@ class SystemPlugin(Plugin):
         """
         tool_message_print(f"Getting environment variable: {variable_name}")
         
-        value = os.environ.get(variable_name)
-        
-        if value is not None:
-            # Mask sensitive values
-            if any(keyword in variable_name.lower() for keyword in ['token', 'key', 'secret', 'password', 'credential']):
-                return {
-                    "name": variable_name,
-                    "exists": True,
-                    "value": "[REDACTED]"
-                }
+        try:
+            value = os.environ.get(variable_name)
+            
+            if value is not None:
+                # Mask sensitive values
+                if any(keyword in variable_name.lower() for keyword in ['token', 'key', 'secret', 'password', 'credential']):
+                    return {
+                        "name": variable_name,
+                        "exists": True,
+                        "value": "[REDACTED]"
+                    }
+                else:
+                    return {
+                        "name": variable_name,
+                        "exists": True,
+                        "value": value
+                    }
             else:
                 return {
                     "name": variable_name,
-                    "exists": True,
-                    "value": value
+                    "exists": False,
+                    "value": None
                 }
-        else:
-            return {
-                "name": variable_name,
-                "exists": False,
-                "value": None
-            }
+                
+        except Exception as e:
+            raise PluginError(f"Error getting environment variable: {e}", plugin_name=SystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -271,11 +276,15 @@ class SystemPlugin(Plugin):
                     "returncode": -1
                 }
         
-        # Use ThreadPoolExecutor to run commands in parallel
-        results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(commands), 5)) as executor:
-            futures = [executor.submit(run_command, cmd) for cmd in commands]
-            for future in concurrent.futures.as_completed(futures):
-                results.append(future.result())
-                
-        return results
+        try:
+            # Use ThreadPoolExecutor to run commands in parallel
+            results = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(commands), 5)) as executor:
+                futures = [executor.submit(run_command, cmd) for cmd in commands]
+                for future in concurrent.futures.as_completed(futures):
+                    results.append(future.result())
+                    
+            return results
+            
+        except Exception as e:
+            raise PluginError(f"Error running parallel commands: {e}", plugin_name=SystemPlugin.__name__) from e

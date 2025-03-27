@@ -121,7 +121,6 @@ class ToolExecutor:
                         details={"function_name": function.__name__, "arguments_json": arguments_json, "tool_call_id": context.tool_call_id, "missing_argument": param_name}
                     )
 
-
             # Validate argument types against annotations
             for param_name, param in sig.parameters.items():
                 if param_name in function_args:
@@ -142,7 +141,6 @@ class ToolExecutor:
                                 "actual_type": type(arg_value).__name__
                             }
                         )
-
 
             return function_args
         except json.JSONDecodeError as e:
@@ -209,18 +207,18 @@ class ToolExecutor:
             error = ToolExecutionError(
                 message=str(error),
                 tool_name=context.name,
-                tool_args=context.args
+                tool_args=context.args,
+                details={"tool_call_id": context.tool_call_id}
             )
 
         # Display error
         self.display.display_tool_error(context.name, str(error))
 
-        # Add error to conversation history
+        # Add error to conversation history - use error message as content
         self.assistant.add_toolcall_output(
             context.tool_call_id,
             context.name,
-            str(error),
-            error_details=context.args
+            str(error)  # Content is error message
         )
 
     def _handle_missing_tool(self, context: ToolExecutionContext) -> None:
@@ -233,11 +231,15 @@ class ToolExecutor:
             message=f"Tool not found: {context.name}",
             tool_name=context.name,
             tool_args={},
-            details={"tool_call_id": context.tool_call_id, "tool_name": context.name} # Add context details for missing tool
+            details={"tool_call_id": context.tool_call_id}
         )
+
+        # Display error
+        self.display.display_tool_error(context.name, str(error))
+
+        # Add to conversation history
         self.assistant.add_toolcall_output(
             context.tool_call_id,
             context.name,
-            str(error),
-            error_details={"tool_name": context.name, "tool_call_id": context.tool_call_id} # Add tool name to error details
+            str(error)  # Content is error message
         )

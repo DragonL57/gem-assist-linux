@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
 class FileSystemPlugin(Plugin):
@@ -29,13 +29,24 @@ class FileSystemPlugin(Plugin):
         Returns:
             List of dictionaries containing file information
         """
-        
-        if path is None:
-            path = os.getcwd()
-            
-        tool_message_print(f"Listing directory: {path}")
-        
         try:
+            if path is None:
+                path = os.getcwd()
+                
+            tool_message_print(f"Listing directory: {path}")
+            
+            if not os.path.exists(path):
+                raise PluginError(
+                    f"Directory does not exist: {path}",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+                
+            if not os.path.isdir(path):
+                raise PluginError(
+                    f"Not a directory: {path}",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+            
             # Get all entries in the directory
             entries = os.listdir(path)
             results = []
@@ -73,6 +84,7 @@ class FileSystemPlugin(Plugin):
                     })
                     
                 except Exception as e:
+                    # Skip entries we can't access but don't fail completely
                     results.append({
                         "name": entry,
                         "error": str(e)
@@ -82,8 +94,10 @@ class FileSystemPlugin(Plugin):
             results.sort(key=lambda x: (not x.get("is_dir", False), x["name"].lower()))
             return results
             
+        except PluginError:
+            raise
         except Exception as e:
-            return [{"error": str(e)}]
+            raise PluginError(f"Error listing directory: {e}", plugin_name=FileSystemPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -92,47 +106,59 @@ class FileSystemPlugin(Plugin):
     )
     def get_drives() -> List[Dict[str, Any]]:
         """
-        Get available drives on the system.
+        Get available drives on the system. 
         
         Returns:
             List of dictionaries containing drive information
         """
         tool_message_print("Getting system drives")
         
-        import psutil
-        
-        partitions = psutil.disk_partitions(all=False)
-        results = []
-        
-        for partition in partitions:
+        try:
             try:
-                usage = psutil.disk_usage(partition.mountpoint)
-                
-                # Calculate percentages and format sizes
-                total_gb = usage.total / (1024 * 1024 * 1024)
-                used_gb = usage.used / (1024 * 1024 * 1024)
-                free_gb = usage.free / (1024 * 1024 * 1024)
-                
-                results.append({
-                    "device": partition.device,
-                    "mountpoint": partition.mountpoint,
-                    "filesystem": partition.fstype,
-                    "total_gb": round(total_gb, 2),
-                    "used_gb": round(used_gb, 2),
-                    "free_gb": round(free_gb, 2),
-                    "percent_used": usage.percent
-                })
-            except Exception as e:
-                results.append({
-                    "device": partition.device,
-                    "mountpoint": partition.mountpoint,
-                    "filesystem": partition.fstype,
-                    "error": str(e)
-                })
-                
-        return results
-
-    # Continue implementing other filesystem tools...
+                import psutil
+            except ImportError:
+                raise PluginError(
+                    "psutil package is required for drive information",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+            
+            partitions = psutil.disk_partitions(all=False)
+            results = []
+            
+            for partition in partitions:
+                try:
+                    usage = psutil.disk_usage(partition.mountpoint)
+                    
+                    # Calculate percentages and format sizes
+                    total_gb = usage.total / (1024 * 1024 * 1024)
+                    used_gb = usage.used / (1024 * 1024 * 1024)
+                    free_gb = usage.free / (1024 * 1024 * 1024)
+                    
+                    results.append({
+                        "device": partition.device,
+                        "mountpoint": partition.mountpoint,
+                        "filesystem": partition.fstype,
+                        "total_gb": round(total_gb, 2),
+                        "used_gb": round(used_gb, 2),
+                        "free_gb": round(free_gb, 2),
+                        "percent_used": usage.percent
+                    })
+                except Exception as e:
+                    # Skip drives we can't access but don't fail completely
+                    results.append({
+                        "device": partition.device,
+                        "mountpoint": partition.mountpoint,
+                        "filesystem": partition.fstype,
+                        "error": str(e)
+                    })
+                    
+            return results
+            
+        except PluginError:
+            raise
+        except Exception as e:
+            raise PluginError(f"Error getting drives: {e}", plugin_name=FileSystemPlugin.__name__) from e
+    
     @staticmethod
     @tool(
         categories=["filesystem", "metadata"],
@@ -151,6 +177,12 @@ class FileSystemPlugin(Plugin):
         tool_message_print(f"Getting metadata for: {filepath}")
         
         try:
+            if not os.path.exists(filepath):
+                raise PluginError(
+                    f"File not found: {filepath}",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+            
             stats = os.stat(filepath)
             is_dir = os.path.isdir(filepath)
             
@@ -187,8 +219,10 @@ class FileSystemPlugin(Plugin):
                 
             return result
             
+        except PluginError:
+            raise
         except Exception as e:
-            return {"error": str(e)}
+            raise PluginError(f"Error getting file metadata: {e}", plugin_name=FileSystemPlugin.__name__) from e
 
     @staticmethod
     @tool(
@@ -210,20 +244,25 @@ class FileSystemPlugin(Plugin):
         """
         tool_message_print(f"Reading file: {filepath}")
         
-        # Check if file exists
-        if not os.path.exists(filepath):
-            return f"Error: File not found: {filepath}"
-            
-        # Check if it's a regular file
-        if not os.path.isfile(filepath):
-            return f"Error: Not a regular file: {filepath}"
-        
-        # Get file extension
-        _, ext = os.path.splitext(filepath)
-        ext = ext.lower()
-        
-        # Handle based on file type
         try:
+            # Check if file exists
+            if not os.path.exists(filepath):
+                raise PluginError(
+                    f"File not found: {filepath}",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+                
+            # Check if it's a regular file
+            if not os.path.isfile(filepath):
+                raise PluginError(
+                    f"Not a regular file: {filepath}",
+                    plugin_name=FileSystemPlugin.__name__
+                )
+            
+            # Get file extension
+            _, ext = os.path.splitext(filepath)
+            ext = ext.lower()
+            
             # Force text mode if requested
             if force_text_mode:
                 with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
@@ -237,14 +276,26 @@ class FileSystemPlugin(Plugin):
                     with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                         return f.read()
                 
-                # PDF - use document utils
+                # PDF files
                 elif ext == '.pdf':
-                    from utils.document_utils import read_pdf_text
+                    try:
+                        from utils.document_utils import read_pdf_text
+                    except ImportError:
+                        raise PluginError(
+                            "Document utils required for PDF reading",
+                            plugin_name=FileSystemPlugin.__name__
+                        )
                     return read_pdf_text(filepath)
                 
                 # Office documents
                 elif ext in ['.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt']:
-                    from utils.document_utils import convert_document
+                    try:
+                        from utils.document_utils import convert_document
+                    except ImportError:
+                        raise PluginError(
+                            "Document utils required for Office document reading",
+                            plugin_name=FileSystemPlugin.__name__
+                        )
                     return convert_document(filepath)
                     
                 # Binary files - report file type and size
@@ -256,11 +307,11 @@ class FileSystemPlugin(Plugin):
                         size = os.path.getsize(filepath)
                         return f"Binary file: {os.path.basename(filepath)} ({size} bytes). Use force_text_mode=True to attempt text reading."
             else:
-                # Simple text reading mode (equivalent to old read_file behavior)
+                # Simple text reading mode
                 with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                     return f.read()
         
+        except PluginError:
+            raise
         except Exception as e:
-            return f"Error reading file: {e}"
-
-    # Add more filesystem tools as needed...
+            raise PluginError(f"Error reading file: {e}", plugin_name=FileSystemPlugin.__name__) from e

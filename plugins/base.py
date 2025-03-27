@@ -9,6 +9,15 @@ from functools import wraps
 # Change relative import to absolute import
 from plugins.registry import get_registry  # Changed from .registry
 
+class PluginError(Exception):
+    """
+    Base exception class for plugin errors.
+    Includes plugin name context with error messages.
+    """
+    def __init__(self, message: str, plugin_name: str):
+        self.plugin_name = plugin_name
+        super().__init__(f"[{plugin_name}] {message}")
+
 class Plugin(ABC):
     """
     Base class for plugin implementations.

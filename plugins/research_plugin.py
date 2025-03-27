@@ -6,7 +6,7 @@ import requests
 import re
 from typing import Dict, Any, List, Optional, Union
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print  # Updated import path
 
 class ResearchPlugin(Plugin):
@@ -58,7 +58,7 @@ class ResearchPlugin(Plugin):
             entry = root.find('.//atom:entry', ns)
             
             if entry is None:
-                return {"error": f"Paper {paper_id} not found"}
+                raise PluginError(f"Paper {paper_id} not found", plugin_name=ResearchPlugin.__name__)
                 
             # Extract basic information
             title = entry.find('./atom:title', ns).text.strip()
@@ -118,7 +118,7 @@ class ResearchPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"error": f"Error retrieving paper: {e}"}
+            raise PluginError(f"Error retrieving arxiv paper: {e}", plugin_name=ResearchPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -127,7 +127,7 @@ class ResearchPlugin(Plugin):
     )
     def summarize_research_paper(text: str, max_length: int = 1500) -> Dict[str, Any]:
         """
-        Extract and summarize key sections from a research paper.
+        Extract and summarize key sections from a research paper. 
         
         Args:
             text: Full text of the research paper
@@ -138,88 +138,92 @@ class ResearchPlugin(Plugin):
         """
         tool_message_print("Summarizing research paper")
         
-        # List of common section headers in research papers
-        section_patterns = [
-            r'abstract',
-            r'introduction',
-            r'background',
-            r'related work',
-            r'methodology',
-            r'methods',
-            r'experimental setup',
-            r'experiments',
-            r'results',
-            r'discussion',
-            r'conclusion',
-            r'future work',
-            r'acknowledgments',
-            r'references'
-        ]
-        
-        # Compile case-insensitive patterns for section headers
-        # Look for headers that are standalone or followed by a colon or number
-        section_regexes = [
-            re.compile(rf'\b{pattern}\b(?::|\.|\s*\d)?', re.IGNORECASE) 
-            for pattern in section_patterns
-        ]
-        
-        # Split text into lines
-        lines = text.split('\n')
-        
-        # Identify potential section headers
-        sections = {}
-        current_section = "preamble"
-        sections[current_section] = []
-        
-        for i, line in enumerate(lines):
-            # Check if the line matches any section header pattern
-            for pattern, regex in zip(section_patterns, section_regexes):
-                if regex.search(line) and len(line.strip()) < 100:  # Avoid matching sentences containing pattern words
-                    current_section = pattern
-                    if current_section not in sections:
-                        sections[current_section] = []
-                    break
+        try:
+            # List of common section headers in research papers
+            section_patterns = [
+                r'abstract',
+                r'introduction',
+                r'background',
+                r'related work',
+                r'methodology',
+                r'methods',
+                r'experimental setup',
+                r'experiments',
+                r'results',
+                r'discussion',
+                r'conclusion',
+                r'future work',
+                r'acknowledgments',
+                r'references'
+            ]
             
-            # Add line to current section
-            sections[current_section].append(line)
-        
-        # Join lines within each section
-        for section in sections:
-            sections[section] = '\n'.join(sections[section])
-            # Trim to max_length if needed
-            if len(sections[section]) > max_length:
-                sections[section] = sections[section][:max_length] + "..."
-        
-        # Find and extract any numerical references
-        references = []
-        ref_pattern = re.compile(r'\[\d+\]')
-        ref_matches = ref_pattern.findall(text)
-        if ref_matches:
-            references = sorted(list(set(ref_matches)))
-        
-        # Extract potential citations (names with years)
-        citations = []
-        citation_pattern = re.compile(r'(?:[A-Z][a-z]+(?:\s+and\s+|\s*,\s*)?)+\s+et\s+al\.?\s*\(\d{4}\)')
-        citation_matches = citation_pattern.findall(text)
-        if citation_matches:
-            citations = sorted(list(set(citation_matches)))[:20]  # Limit to 20 citations max
-        
-        # Create the summary result
-        result = {
-            "sections": sections,
-            "section_names": list(sections.keys()),
-            "has_abstract": "abstract" in sections,
-            "has_conclusion": any(s in sections for s in ["conclusion", "conclusions"]),
-            "references_count": len(references),
-            "citations_sample": citations[:10],  # Include up to 10 sample citations
-        }
-        
-        # Count words and estimate pages
-        word_count = len(text.split())
-        result["word_count"] = word_count
-        result["estimated_pages"] = round(word_count / 500)  # Rough estimate: ~500 words per page
-        
-        # Print summary info
-        tool_report_print(f"Paper summary: {result['estimated_pages']} pages, {len(sections)} sections identified")
-        
-        return result
+            # Compile case-insensitive patterns for section headers
+            # Look for headers that are standalone or followed by a colon or number
+            section_regexes = [
+                re.compile(rf'\b{pattern}\b(?::|\.|\s*\d)?', re.IGNORECASE) 
+                for pattern in section_patterns
+            ]
+            
+            # Split text into lines
+            lines = text.split('\n')
+            
+            # Identify potential section headers
+            sections = {}
+            current_section = "preamble"
+            sections[current_section] = []
+            
+            for i, line in enumerate(lines):
+                # Check if the line matches any section header pattern
+                for pattern, regex in zip(section_patterns, section_regexes):
+                    if regex.search(line) and len(line.strip()) < 100:  # Avoid matching sentences containing pattern words
+                        current_section = pattern
+                        if current_section not in sections:
+                            sections[current_section] = []
+                        break
+                
+                # Add line to current section
+                sections[current_section].append(line)
+            
+            # Join lines within each section
+            for section in sections:
+                sections[section] = '\n'.join(sections[section])
+                # Trim to max_length if needed
+                if len(sections[section]) > max_length:
+                    sections[section] = sections[section][:max_length] + "..."
+            
+            # Find and extract any numerical references
+            references = []
+            ref_pattern = re.compile(r'\[\d+\]')
+            ref_matches = ref_pattern.findall(text)
+            if ref_matches:
+                references = sorted(list(set(ref_matches)))
+            
+            # Extract potential citations (names with years)
+            citations = []
+            citation_pattern = re.compile(r'(?:[A-Z][a-z]+(?:\s+and\s+|\s*,\s*)?)+\s+et\s+al\.?\s*\(\d{4}\)')
+            citation_matches = citation_pattern.findall(text)
+            if citation_matches:
+                citations = sorted(list(set(citation_matches)))[:20]  # Limit to 20 citations max
+            
+            # Create the summary result
+            result = {
+                "sections": sections,
+                "section_names": list(sections.keys()),
+                "has_abstract": "abstract" in sections,
+                "has_conclusion": any(s in sections for s in ["conclusion", "conclusions"]),
+                "references_count": len(references),
+                "citations_sample": citations[:10],  # Include up to 10 sample citations
+            }
+            
+            # Count words and estimate pages
+            word_count = len(text.split())
+            result["word_count"] = word_count
+            result["estimated_pages"] = round(word_count / 500)  # Rough estimate: ~500 words per page
+            
+            # Print summary info
+            tool_report_print(f"Paper summary: {result['estimated_pages']} pages, {len(sections)} sections identified")
+            
+            return result
+            
+        except Exception as e:
+            raise PluginError(f"Error summarizing research paper: {e}", plugin_name=ResearchPlugin.__name__) from e
