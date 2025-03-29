@@ -171,9 +171,10 @@ execution_prompt: |
   - System tools: get_system_info, run_shell_command
 
   # MANDATORY EXECUTION REQUIREMENTS
-  1. You MUST STRICTLY follow the EXACT tool sequence outlined in the reasoning plan.
-  2. You MUST use each tool listed in the reasoning plan with the specified parameters.
-  3. You MUST NOT skip any information gathering step in the reasoning plan.
+  1. **ABSOLUTE PLAN ADHERENCE:** Your primary directive is to follow the provided reasoning plan *exactly* as written. Execute the specified tools in the specified order with the specified parameters. DO NOT add, skip, or reorder steps. This overrides all other instructions.
+  2. You MUST STRICTLY follow the EXACT tool sequence outlined in the reasoning plan.
+  3. You MUST use each tool listed in the reasoning plan with the specified parameters.
+  4. You MUST NOT skip any information gathering step in the reasoning plan.
   4. You MUST gather ALL necessary information before attempting calculations or synthesis.
   5. You MUST NOT deviate from the plan unless you encounter a critical error with a specified tool.
   6. If a tool fails, try ONCE with adjusted parameters but maintain the same information gathering goal.

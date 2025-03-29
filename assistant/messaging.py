@@ -35,13 +35,19 @@ class MessageProcessor:
         )
         execution_messages.append({
             "role": "system",
-            "content": f"{formatted_execution_prompt}\n\nYour reasoning plan: {reasoning}"
+            "content": formatted_execution_prompt # Remove reasoning from system prompt
         })
 
         # Add the conversation history (except the system message)
         for msg in self.assistant.messages:
             if msg["role"] != "system":
                 execution_messages.append(msg)
+
+        # Inject reasoning plan as an assistant instruction before the user message
+        execution_messages.append({
+            "role": "assistant",
+            "content": f"Okay, I will execute the following reasoning plan precisely:\n```\n{reasoning}\n```\n"
+        })
 
         # Add the user's message
         execution_messages.append({"role": "user", "content": message})
@@ -73,88 +79,201 @@ class MessageProcessor:
             ) from e
 
     async def process_response(self, response: Any, print_response: bool = True) -> Dict[str, Any]:
-        """Process the model's response, including any tool calls."""
+        """Process the model's response, looping through tool calls until completion."""
+        current_response = response
+        loop_count = 0
+        max_loops = 10 # Safety break to prevent infinite loops
+
         try:
-            # Pre-validate response format
-            self._validate_response_input(response)
+            while loop_count < max_loops:
+                loop_count += 1
+                self.assistant.logger.log_debug(f"Processing response loop iteration {loop_count}")
 
-            if not hasattr(response.choices[0], 'message'):
-                raise MessageProcessingError(
-                    message="Invalid response format - missing message attribute",
-                    phase="response_processing",
-                    details={"response": str(response)}
-                )
-
-            response_message = response.choices[0].message
-            tool_calls = getattr(response_message, 'tool_calls', None)
-
-            # Ensure message has content
-            if not hasattr(response_message, 'content') or response_message.content is None:
-                response_message.content = "" # Set empty string for non-tool responses
-
-            # Display model reasoning in debug mode
-            self.assistant.display.extract_and_display_reasoning(response)
-
-            self.assistant.messages.append(response_message)
-            final_response = response_message
-
-            # Process tool calls if present
-            if tool_calls:
-                self._handle_reasoning_display(response_message, print_response)
-                self.assistant.console.print(f"[bold cyan]Running {len(tool_calls)} tool operation(s):[/]")
-
-                # Process each tool call asynchronously
-                for tool_call in tool_calls:
-                    await self.assistant.tool_executor.execute_tool_call(tool_call)
-
-                # Add a visual separator after all tool calls
-                self.assistant.console.print("[cyan]───────────────────────────────────────[/]")
-
-                # Get the final response after tool execution
-                final_response = await self.assistant.get_completion()
-
-                if not final_response or not hasattr(final_response, 'choices'):
+                # --- Validate current response ---
+                self._validate_response_input(current_response) # Check if response object is valid
+                if not current_response or not hasattr(current_response, 'choices') or not current_response.choices: # Check if choices list is empty or response invalid
                     raise MessageProcessingError(
-                        message="Invalid final response format",
-                        phase="response_processing",
-                        details={"response": str(final_response)}
+                        message="Invalid response format in loop - missing or empty choices",
+                        phase="response_processing_loop",
+                        details={"response": str(current_response), "loop": loop_count}
+                    )
+                if not hasattr(current_response.choices[0], 'message'):
+                    raise MessageProcessingError(
+                        message="Invalid response format in loop - missing message attribute",
+                        phase="response_processing_loop",
+                        details={"response": str(current_response), "loop": loop_count}
                     )
 
-                tool_calls = getattr(final_response.choices[0].message, 'tool_calls', None)
+                response_message = current_response.choices[0].message
+                tool_calls = getattr(response_message, 'tool_calls', None)
 
-                if not tool_calls:
-                    response_message = final_response.choices[0].message
-                    self.assistant.messages.append(response_message)
-                    if print_response and hasattr(response_message, 'content'):
-                        # Add a visual indicator that this is the final response
+                # Ensure message has content even if just calling tools
+                if not hasattr(response_message, 'content') or response_message.content is None:
+                    response_message.content = "" # Use empty string if no text content
+
+                # Add the *intermediate* assistant message (which might contain tool calls) to history
+                # Avoid duplicates if somehow the model returns the exact same message object
+                if not self.assistant.messages or self.assistant.messages[-1] is not response_message:
+                     self.assistant.messages.append(response_message)
+
+                # --- Check for Tool Calls ---
+                if tool_calls:
+                    self.assistant.logger.log_debug(f"Found {len(tool_calls)} tool calls in loop {loop_count}")
+                    self._handle_reasoning_display(response_message, print_response) # Display thinking before tools
+                    self.assistant.console.print(f"[bold cyan]Running {len(tool_calls)} tool operation(s) (Loop {loop_count}):[/]")
+
+                    # Execute the current batch of tool calls
+                    for tool_call in tool_calls:
+                        # tool_executor should add results to self.assistant.messages
+                        await self.assistant.tool_executor.execute_tool_call(tool_call)
+
+                    # Add a visual separator after this batch of tool calls
+                    self.assistant.console.print("[cyan]───────────────────────────────────────[/]")
+
+                    # Call the model *again* with the updated history (including tool results)
+                    self.assistant.logger.log_debug(f"Requesting next step after loop {loop_count} tool execution")
+                    try:
+                        # Use the main history which now includes the latest tool results
+                        current_response = await self.assistant.get_completion_with_retry() # Reassign current_response
+                    except Exception as e:
+                        # Log and re-raise specific error for API call failure within loop
+                        raise MessageProcessingError(
+                            message=f"Failed API call during tool loop {loop_count}: {str(e)}",
+                            phase="tool_loop_api_call",
+                            details={"error": str(e), "loop": loop_count}
+                        ) from e
+                    # Continue the loop to process the new response from the model
+                    continue
+                else:
+                    # --- No More Tool Calls: Proceed to Final Synthesis ---
+                    self.assistant.logger.log_debug("No more tool calls found, proceeding to final synthesis.")
+
+                    # The last `response_message` from the loop is the one without tool calls.
+                    # We will use our explicit synthesis prompt approach instead of just returning it.
+
+                    # 1. Gather tool results and user query from the *entire* history
+                    tool_results_summary = []
+                    user_query = ""
+                    system_prompt = ""
+                    if self.assistant.messages and self.assistant.messages[0]["role"] == "system":
+                        system_prompt = self.assistant.messages[0]["content"]
+
+                    # Iterate through the potentially long history to find last user query and all tool results
+                    for msg in reversed(self.assistant.messages):
+                        if msg["role"] == "tool":
+                            # Prepend results so they appear in execution order in the prompt
+                            # Limit result size for prompt efficiency
+                            content_str = str(msg.get('content', ''))
+                            max_len = 500 # Max length for tool result content in prompt
+                            if len(content_str) > max_len:
+                                content_str = content_str[:max_len] + "... (truncated)"
+                            tool_results_summary.insert(0, f"- Result from {msg.get('name', 'unknown_tool')} (ID: {msg.get('tool_call_id', 'N/A')}):\n```\n{content_str}\n```")
+                        elif msg["role"] == "user" and not user_query:
+                             # Find the *last* user message in the history
+                            user_query = msg["content"]
+                            # Optimization: Can stop once last user query is found if history order is guaranteed
+                            # break # Keep searching history for all tool results
+
+                    tool_results_text = "\n".join(tool_results_summary) if tool_results_summary else "No tool results were generated."
+
+                    # 2. Construct synthesis prompt messages
+                    synthesis_instructions = (
+                        "The user asked the following:\n"
+                        f"```\n{user_query}\n```\n\n"
+                        "The following actions were taken and results gathered:\n"
+                        f"{tool_results_text}\n\n"
+                        "Based *only* on the user query and the provided tool results, synthesize a final, comprehensive response for the user.\n"
+                        "Directly address all parts of the user's original query.\n"
+                        "Present the information clearly. If code was generated and saved, include the code in a markdown block.\n"
+                        "Do not just confirm that steps were done; provide the actual results found in the tool output."
+                    )
+
+                    synthesis_prompt_messages = []
+                    if system_prompt:
+                        # Using original system prompt for now
+                        synthesis_prompt_messages.append({"role": "system", "content": system_prompt})
+                    # Include user query for context, even though it's in the instruction
+                    if user_query:
+                        synthesis_prompt_messages.append({"role": "user", "content": user_query})
+                    # Provide the instructions and results as the assistant's turn
+                    synthesis_prompt_messages.append({"role": "assistant", "content": synthesis_instructions})
+
+                    # 3. Get the final synthesized response
+                    self.assistant.logger.log_debug("Requesting final synthesis", {"synthesis_prompt_msg_count": len(synthesis_prompt_messages)})
+                    try:
+                        final_synth_response = await self.assistant.get_completion_with_retry(messages=synthesis_prompt_messages)
+                    except Exception as e:
+                         # Log and re-raise specific error for final synthesis failure
+                         raise MessageProcessingError(
+                            message=f"Failed during final synthesis API call: {str(e)}",
+                            phase="final_synthesis",
+                            details={"error": str(e)}
+                        ) from e
+
+                    # Validate final synthesis response
+                    self._validate_response_input(final_synth_response) # Check structure
+                    if not final_synth_response.choices: # Check if choices list is empty
+                         raise MessageProcessingError("Invalid final synthesis response: No choices found.", phase="final_synthesis")
+                    if not hasattr(final_synth_response.choices[0], 'message'):
+                         raise MessageProcessingError("Invalid final synthesis response format: Missing message.", phase="final_synthesis")
+
+                    final_message = final_synth_response.choices[0].message
+
+                    # Ensure the final synthesized message doesn't try to call tools again
+                    if getattr(final_message, 'tool_calls', None):
+                        self.assistant.logger.log_error("Unexpected tool calls returned during final synthesis!", {"response": final_message})
+                        # Fallback: just use the content part if available, or provide an error message
+                        final_message.content = getattr(final_message, 'content', "[Error: Synthesis failed, attempted further tool calls]")
+                        # Ensure tool_calls is None or empty list if modifying object
+                        try:
+                            final_message.tool_calls = None
+                        except AttributeError: # Handle case where attribute might not be settable
+                             pass
+
+
+                    # Add the *final synthesized* message to history
+                    # Avoid duplicates if somehow it's the same as the last intermediate one
+                    if not self.assistant.messages or self.assistant.messages[-1] is not final_message:
+                        self.assistant.messages.append(final_message)
+
+                    # Display the final synthesized response
+                    if print_response and hasattr(final_message, 'content') and final_message.content:
                         self.assistant.console.print("[bold green]Final Response:[/]")
-                        self.assistant.display.print_ai(response_message.content)
-                    return response_message
+                        self.assistant.display.print_ai(final_message.content)
+                    elif print_response:
+                         self.assistant.console.print("[bold green]Final Response:[/]")
+                         self.assistant.display.print_ai("[Assistant provided no text content]")
 
-                # Handle any additional tool calls recursively
-                return await self.process_response(final_response, print_response=print_response)
-            else:
-                # No tool calls - display the response directly
-                if print_response and hasattr(response_message, 'content'):
-                    self.assistant.display.print_ai(response_message.content)
-                return response_message
+
+                    return final_message # Return the final synthesized message object
+
+            # If loop exceeds max_loops
+            self.assistant.logger.log_error(f"Tool execution loop exceeded maximum iterations ({max_loops})")
+            raise MessageProcessingError(f"Tool execution loop exceeded maximum iterations ({max_loops})", phase="tool_loop")
 
         except Exception as e:
             self.assistant.console.print(f"[error]Error in processing response: {e}[/]")
-            traceback.print_exc()
-            if isinstance(e, MessageProcessingError):
+            # Add traceback logging here
+            self.assistant.logger.log_error(f"Traceback: {traceback.format_exc()}")
+            # Ensure error is re-raised correctly
+            if isinstance(e, (MessageProcessingError, AsyncOperationError)):
                 raise
+            # Wrap unexpected errors
             raise AsyncOperationError(
-                message=str(e),
+                message=f"Unhandled error in process_response: {str(e)}",
                 operation="response_processing",
                 details={"error": str(e)}
             ) from e
 
     def _handle_reasoning_display(self, response_message: Any, print_response: bool) -> None:
-        """Display model's reasoning before tool calls if present."""
-        if hasattr(response_message, 'content') and response_message.content and print_response:
-            self.assistant.console.print("[dim italic]Model thinking: " + response_message.content.strip() + "[/]")
-            self.assistant.console.print()  # Add space for readability
+        """Display model's thinking before tool calls if present."""
+        # Check if content exists and print_response is True
+        if print_response and hasattr(response_message, 'content') and response_message.content:
+             # Check if the content is not just whitespace
+             content_strip = response_message.content.strip()
+             if content_strip:
+                 self.assistant.console.print("[dim italic]Model thinking: " + content_strip + "[/]")
+                 self.assistant.console.print()  # Add space for readability
 
     def _validate_message_input(self, message: str, reasoning: str) -> None:
         """Validate user message and reasoning input."""

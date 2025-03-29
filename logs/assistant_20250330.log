@@ -1,0 +1,14 @@
+2025-03-30 00:06:01,790 - assistant - INFO - Starting message processing
+2025-03-30 00:06:12,554 - assistant - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/long/gem-assist/assistant/messaging.py", line 88, in process_response
+    if not final_response or not hasattr(final_response, 'choices') or not final_response.choices: # Check if choices list is empty or response invalid
+           ^^^^^^^^^^^^^^
+NameError: name 'final_response' is not defined
+
+2025-03-30 00:06:12,554 - assistant - ERROR - [EXECUTION_FAILURE] Failed during execution phase
+2025-03-30 00:09:57,817 - assistant - INFO - Starting message processing
+2025-03-30 00:10:17,848 - assistant - INFO - Message processing completed successfully
+2025-03-30 00:17:16,510 - assistant - INFO - Starting message processing
+2025-03-30 00:17:43,480 - assistant - INFO - Message processing completed successfully
+2025-03-30 00:27:44,999 - assistant - INFO - Starting message processing
+2025-03-30 00:28:12,522 - assistant - INFO - Message processing completed successfully

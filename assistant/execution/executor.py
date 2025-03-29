@@ -5,6 +5,7 @@ import json
 import time
 import inspect
 import asyncio
+import re # Add regex import
 from typing import Any, Dict, List, Callable, Optional, Type, Union, Coroutine, Tuple
 from dataclasses import dataclass
 
@@ -77,9 +78,75 @@ class ToolExecutor:
         try:
             # Process arguments
             context.args = await self._prepare_arguments(function_to_call, tool_call.function.arguments, context)
-            self.display.display_tool_call(context.name, context.args)
-            
-            # Execute function
+            # self.display.display_tool_call(context.name, context.args) # Delay display until after potential swap
+
+            # --- Start Interception Logic for File Writing ---
+            original_tool_name = context.name
+            original_args_json = tool_call.function.arguments # Keep original JSON string for error reporting if needed
+            swapped_to_write_files = False
+
+            if context.name == "execute_python_code" and "code" in context.args:
+                code_content = context.args.get("code", "")
+                # Look for common file writing patterns: open('path', 'w').write(content) or with open(...)
+                # This regex is simplified and might need refinement for complex scenarios
+                # It specifically looks for writing string literals
+                write_pattern = r"(?:with\s+open|open)\s*\(\s*['\"](?P<path>[^'\"]+)['\"]\s*,\s*['\"]w['\"]\s*\).*?\.write\s*\(\s*(?P<quote>['\"]{1,3})(?P<content>.*?)(?P=quote)\s*\)"
+                match = re.search(write_pattern, code_content, re.DOTALL | re.IGNORECASE)
+                if match:
+                    file_path = match.group("path")
+                    file_content = match.group("content")
+                    # Basic handling for triple quotes content - assumes it's mostly literal
+                    # More robust unescaping might be needed for complex strings with internal quotes/escapes
+
+                    self.assistant.logger.log_warning(f"Intercepted 'execute_python_code' potentially for file writing. Swapping to 'write_files'. Path: {file_path}")
+                    context.name = "write_files"
+                    # write_files expects a list of file objects: [{"path": "...", "content": "..."}]
+                    context.args = {"files": [{"path": file_path, "content": file_content}]}
+                    # Update function_to_call and is_async for the new tool
+                    function_info_swap = self._get_tool_function(context.name)
+                    if function_info_swap[0]:
+                        function_to_call, is_async = function_info_swap
+                        swapped_to_write_files = True
+                    else:
+                        # If write_files tool isn't found, log error and revert (or raise)
+                        self.assistant.logger.log_error("Failed to get 'write_files' function after interception. Reverting.")
+                        context.name = original_tool_name
+                        # Re-parse original args? Simpler to raise or let fail. Reverting args for now.
+                        context.args = await self._prepare_arguments(function_to_call, original_args_json, context)
+
+            elif context.name == "run_shell_command" and "command" in context.args:
+                command_content = context.args.get("command", "")
+                # Look for echo redirection pattern: echo "content" > file.txt or echo 'content' > file.txt
+                # This regex assumes simple paths and quotes around content
+                redirect_pattern = r"^\s*echo\s+(?P<quote>['\"])(?P<content>.*?)(?P=quote)\s*>\s*(?P<path>[^\s&|;]+)\s*$"
+                match = re.search(redirect_pattern, command_content, re.DOTALL)
+                if match:
+                    file_path = match.group("path")
+                    file_content = match.group("content")
+                    # Handle potential shell escapes within file_content if necessary
+
+                    self.assistant.logger.log_warning(f"Intercepted 'run_shell_command' potentially for file writing. Swapping to 'write_files'. Path: {file_path}")
+                    context.name = "write_files"
+                    context.args = {"files": [{"path": file_path, "content": file_content}]}
+                    # Update function_to_call and is_async for the new tool
+                    function_info_swap = self._get_tool_function(context.name)
+                    if function_info_swap[0]:
+                        function_to_call, is_async = function_info_swap
+                        swapped_to_write_files = True
+                    else:
+                        self.assistant.logger.log_error("Failed to get 'write_files' function after interception. Reverting.")
+                        context.name = original_tool_name
+                        context.args = await self._prepare_arguments(function_to_call, original_args_json, context)
+
+            # --- End Interception Logic ---
+
+            # Display tool call info (potentially updated)
+            if swapped_to_write_files:
+                self.display.display_tool_call(f"{original_tool_name} -> {context.name}", context.args)
+            else:
+                self.display.display_tool_call(context.name, context.args)
+
+            # Execute function (potentially updated)
             self.display.display_start_execution(context.name)
             
             # Handle both async and sync functions
