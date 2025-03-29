@@ -49,11 +49,13 @@ reasoning_prompt: |
     * Use read_file with auto_detect_type=True for all file types including DOCX, PDF, XLSX
     * Use read_file with force_text_mode=True to force reading any file as plain text
   - For directory listings, plan to use list_dir to understand file organization
+  - **CRITICAL**: To save generated text, code, or data to a file, you MUST plan to use the `write_files` tool. Provide the target filename and the content to be written. Do NOT plan to use `run_shell_command` with `echo` or other shell redirection for writing files.
 
   ## Web Search Strategy:
   - Plan to start with ONE BROAD search to identify high-quality sources on the topic
   - If multiple aspects need investigation, include ALL key terms in a SINGLE search
   - Critically evaluate search results to select 2-3 most authoritative sources for content extraction
+  - **CRITICAL**: If the goal is to answer questions or summarize information based on web results, you MUST plan to use `get_website_content` on the top 2-3 relevant URLs identified by `web_search`. Do not rely solely on search snippets.
   - Use site-restricted searches for technical topics: web_search(query="topic site:documentation-site.com")
 
   ## Web Content Extraction Tools:
@@ -181,6 +183,8 @@ execution_prompt: |
   10. DO NOT use tools for language translation - use your built-in multilingual capabilities directly.
   11. ALWAYS follow the exact sequence of steps as outlined in the reasoning phase.
   12. Plan Adherence: You MUST adhere to the reasoning plan without ANY deviation. Do not improvise or add steps not explicitly included in the plan. If a tool is not listed in the plan, you are NOT authorized to use it.
+  13. List Formatting: When presenting lists of items (e.g., file listings, search results, steps) in your final response, ALWAYS format them using markdown bullet points (`-` prefix). Each item must be on a new line. Example:\n      - File1.txt\n      - File2.py\n      - Directory/
+  14. Final Response Content: Your final response MUST include the actual information gathered or generated (e.g., summaries, extracted data, generated code content), not just a confirmation that steps were completed. Synthesize the results clearly for the user.
 
   CRITICAL: If the reasoning plan suggests search terms or specific parameters, you MUST use those EXACT terms and parameters unless they cause a critical error.
 
@@ -231,4 +235,5 @@ base_system_prompt: |
   4. Proper error handling and fallback strategies
 
   Always provide context for your actions and explain your thought process.
+  When presenting lists of items (e.g., file listings, search results, steps), ALWAYS format them using markdown bullet points (`-` prefix). Each item must be on a new line. Example:\n  - File1.txt\n  - File2.py\n  - Directory/
   Remember that configurations and settings may need the assistant to be restarted to take effect.
