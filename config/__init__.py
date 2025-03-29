@@ -122,38 +122,6 @@ def initialize_config(
     global _config
     _config = Configuration(env_file, safety_config, theme_config)
 
-# For backwards compatibility
-MODEL = get_settings().MODEL
-NAME = get_settings().NAME
-TEMPERATURE = get_settings().TEMPERATURE
-TOP_P = get_settings().TOP_P
-MAX_TOKENS = get_settings().MAX_TOKENS
-SEED = get_settings().SEED
-DEBUG_MODE = get_settings().DEBUG_MODE
-CLEAR_TERMINAL = get_settings().CLEAR_TERMINAL
-CLEAR_BEFORE_START = CLEAR_TERMINAL
-TAKE_ONLY_ONE_MESSAGE = get_settings().TAKE_ONLY_ONE_MESSAGE
-PRINT_OS_ERROR = get_settings().PRINT_OS_ERROR
-
-SAFETY_SETTINGS = get_safety_settings()
-THEME_LOCALS = get_theme_colors()
-
-# System prompts for backwards compatibility
-# Format prompts with context information
-_prompt_manager = get_prompt_manager()
-async def _initialize_prompts():
-    global REASONING_SYSTEM_PROMPT, EXECUTION_SYSTEM_PROMPT, BASE_SYSTEM_PROMPT
-    REASONING_SYSTEM_PROMPT = await format_prompt_with_context( # Await here
-        _prompt_manager.reasoning_prompt,
-        get_settings().NAME
-    )
-    EXECUTION_SYSTEM_PROMPT = await format_prompt_with_context( # Await here
-        _prompt_manager.execution_prompt,
-        get_settings().NAME
-    )
-    BASE_SYSTEM_PROMPT = await format_prompt_with_context( # Await here
-        _prompt_manager.base_system_prompt,
-        get_settings().NAME
-    )
-import asyncio
-asyncio.run(_initialize_prompts())
+# NOTE: Backward compatibility variables removed (lines 126-164).
+# Access configuration via get_config() or get_settings().
+# Prompt formatting moved to main application entry point (main.py).

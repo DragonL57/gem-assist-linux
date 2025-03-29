@@ -5,7 +5,7 @@ import time
 import re
 from typing import Dict, List, Any, Optional, Union
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
 class WebScraperPlugin(Plugin):
@@ -70,7 +70,7 @@ class WebScraperPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"error": str(e), "url": url}
+            raise PluginError(f"Error extracting structured data: {e}", plugin_name=WebScraperPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -104,11 +104,7 @@ class WebScraperPlugin(Plugin):
             tables = pd.read_html(response.text)
             
             if not tables:
-                return {
-                    "success": False,
-                    "error": "No tables found on the page",
-                    "url": url
-                }
+                raise PluginError("No tables found on the page", plugin_name=WebScraperPlugin.__name__)
                 
             # Process tables based on index
             if table_index >= 0 and table_index < len(tables):
@@ -133,15 +129,13 @@ class WebScraperPlugin(Plugin):
                     })
                 table_count = len(tables)
             else:
-                return {
-                    "success": False,
-                    "error": f"Table index {table_index} out of range (0-{len(tables)-1})",
-                    "available_tables": len(tables)
-                }
+                raise PluginError(
+                    f"Table index {table_index} out of range (0-{len(tables)-1})", 
+                    plugin_name=WebScraperPlugin.__name__
+                )
             
             # Build result
             result = {
-                "success": True,
                 "url": url,
                 "table_count": table_count,
                 "tables": tables_data
@@ -154,7 +148,7 @@ class WebScraperPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"success": False, "error": str(e), "url": url}
+            raise PluginError(f"Error extracting tables: {e}", plugin_name=WebScraperPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -162,8 +156,13 @@ class WebScraperPlugin(Plugin):
         requires_network=True,
         rate_limited=True
     )
-    def scrape_with_pagination(base_url: str, max_pages: int = 3, page_param: str = "page", 
-                              start_page: int = 1, content_selector: str = "body") -> Dict[str, Any]:
+    def scrape_with_pagination(
+        base_url: str, 
+        max_pages: int = 3, 
+        page_param: str = "page", 
+        start_page: int = 1, 
+        content_selector: str = "body"
+    ) -> Dict[str, Any]:
         """
         Scrape content from multiple pages of a paginated website.
         
@@ -209,7 +208,11 @@ class WebScraperPlugin(Plugin):
                 soup = BeautifulSoup(response.text, 'html.parser')
                 content = soup.select(content_selector)
                 
-                page_content = "".join(str(element) for element in content)
+                if not content:
+                    raise PluginError(
+                        f"No content found with selector '{content_selector}' on page {page_num}",
+                        plugin_name=WebScraperPlugin.__name__
+                    )
                 
                 # Extract text content
                 text_content = " ".join(element.get_text(strip=True) for element in content)
@@ -230,7 +233,7 @@ class WebScraperPlugin(Plugin):
             return results
             
         except Exception as e:
-            return {"error": str(e), "base_url": base_url}
+            raise PluginError(f"Error scraping paginated content: {e}", plugin_name=WebScraperPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -262,7 +265,10 @@ class WebScraperPlugin(Plugin):
                 from selenium.webdriver.support import expected_conditions as EC
                 from selenium.common.exceptions import TimeoutException
             except ImportError:
-                return {"error": "Selenium is not installed. Install with 'pip install selenium'"}
+                raise PluginError(
+                    "Selenium is not installed. Install with 'pip install selenium'",
+                    plugin_name=WebScraperPlugin.__name__
+                )
                 
             # Set default selectors if none provided
             if selectors is None:
@@ -275,7 +281,9 @@ class WebScraperPlugin(Plugin):
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
             
-            # Initialize the driver
+            # Initialize the driver and extract content
+            results = {"url": url, "content": {}}
+            
             with webdriver.Chrome(options=options) as driver:
                 # Set page load timeout
                 driver.set_page_load_timeout(30)
@@ -287,8 +295,6 @@ class WebScraperPlugin(Plugin):
                 time.sleep(wait_time)
                 
                 # Extract content for each selector
-                results = {"url": url, "content": {}}
-                
                 for selector in selectors:
                     try:
                         # Try to wait for the element to be present
@@ -301,19 +307,19 @@ class WebScraperPlugin(Plugin):
                         results["content"][selector] = content
                         
                     except TimeoutException:
-                        results["content"][selector] = f"Element with selector '{selector}' not found"
+                        results["content"][selector] = None
                         
                 # Get page source
                 results["page_source_length"] = len(driver.page_source)
-                
-                # Print summary
-                selector_count = len([s for s in results["content"] if "not found" not in results["content"][s]])
-                tool_report_print(f"Extracted {selector_count} dynamic elements from {url}")
-                
-                return results
+            
+            # Print summary
+            selector_count = len([s for s in results["content"] if results["content"][s] is not None])
+            tool_report_print(f"Extracted {selector_count} dynamic elements from {url}")
+            
+            return results
                 
         except Exception as e:
-            return {"error": str(e), "url": url}
+            raise PluginError(f"Error scraping dynamic content: {e}", plugin_name=WebScraperPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -390,13 +396,18 @@ class WebScraperPlugin(Plugin):
             if not main_content:
                 main_content = soup.body
             
+            if not main_content:
+                raise PluginError("No content found", plugin_name=WebScraperPlugin.__name__)
+            
             # Extract text with paragraph structure
             paragraphs = []
-            if main_content:
-                for p in main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                    text = p.get_text(strip=True)
-                    if text and len(text) > 15:  # Filter out very short paragraphs
-                        paragraphs.append(text)
+            for p in main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                text = p.get_text(strip=True)
+                if text and len(text) > 15:  # Filter out very short paragraphs
+                    paragraphs.append(text)
+            
+            if not paragraphs:
+                raise PluginError("No paragraphs found in content", plugin_name=WebScraperPlugin.__name__)
             
             # Build the result
             result = {
@@ -415,4 +426,4 @@ class WebScraperPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"error": str(e), "url": url}
+            raise PluginError(f"Error extracting smart content: {e}", plugin_name=WebScraperPlugin.__name__) from e

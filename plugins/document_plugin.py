@@ -4,7 +4,7 @@ Document plugin for working with various document formats.
 import os
 from typing import Dict, Any, List, Optional, Union
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
 class DocumentPlugin(Plugin):
@@ -30,7 +30,10 @@ class DocumentPlugin(Plugin):
         
         try:
             if not os.path.exists(file_path):
-                return f"Error: File not found: {file_path}"
+                raise PluginError(
+                    f"File not found: {file_path}",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
             # Get file extension
             _, ext = os.path.splitext(file_path)
@@ -42,30 +45,31 @@ class DocumentPlugin(Plugin):
             if ext in ['.docx', '.doc']:
                 try:
                     import docx
-                    
-                    doc = docx.Document(file_path)
-                    content = []
-                    
-                    for para in doc.paragraphs:
-                        content.append(para.text)
-                        
-                    if output_format == "html":
-                        # Simple HTML conversion
-                        html_content = "<html><body>"
-                        for para in content:
-                            if para.strip():
-                                html_content += f"<p>{para}</p>"
-                        html_content += "</body></html>"
-                        return html_content
-                    elif output_format == "md":
-                        # Simple Markdown conversion
-                        return "\n\n".join(content)
-                    else:  # text
-                        return "\n\n".join(content)
                 except ImportError:
-                    return "Error: python-docx package is required for .docx processing"
-                except Exception as e:
-                    return f"Error processing Word document: {e}"
+                    raise PluginError(
+                        "python-docx package is required for .docx processing",
+                        plugin_name=DocumentPlugin.__name__
+                    )
+                
+                doc = docx.Document(file_path)
+                content = []
+                
+                for para in doc.paragraphs:
+                    content.append(para.text)
+                    
+                if output_format == "html":
+                    # Simple HTML conversion
+                    html_content = "<html><body>"
+                    for para in content:
+                        if para.strip():
+                            html_content += f"<p>{para}</p>"
+                    html_content += "</body></html>"
+                    return html_content
+                elif output_format == "md":
+                    # Simple Markdown conversion
+                    return "\n\n".join(content)
+                else:  # text
+                    return "\n\n".join(content)
             
             # PDF documents
             elif ext == '.pdf':
@@ -80,10 +84,15 @@ class DocumentPlugin(Plugin):
             
             # Unsupported formats
             else:
-                return f"Error: Unsupported file format: {ext}"
+                raise PluginError(
+                    f"Unsupported file format: {ext}",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
+        except PluginError:
+            raise
         except Exception as e:
-            return f"Error converting document: {e}"
+            raise PluginError(f"Error converting document: {e}", plugin_name=DocumentPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -92,7 +101,7 @@ class DocumentPlugin(Plugin):
     )
     def read_excel_file(file_path: str, sheet_name: str = None, max_rows: int = 100) -> Dict[str, Any]:
         """
-        Read an Excel file and return its content as structured data.
+        Read an Excel file and return its content as structured data. 
         
         Args:
             file_path: Path to the Excel file
@@ -105,10 +114,19 @@ class DocumentPlugin(Plugin):
         tool_message_print(f"Reading Excel file: {file_path}")
         
         try:
-            import pandas as pd
+            try:
+                import pandas as pd
+            except ImportError:
+                raise PluginError(
+                    "pandas package is required for Excel processing",
+                    plugin_name=DocumentPlugin.__name__
+                )
             
             if not os.path.exists(file_path):
-                return {"error": f"File not found: {file_path}"}
+                raise PluginError(
+                    f"File not found: {file_path}",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
             # Get Excel file sheet names
             xl = pd.ExcelFile(file_path)
@@ -139,12 +157,15 @@ class DocumentPlugin(Plugin):
                 
                 return result
             else:
-                return {"error": f"Sheet '{sheet_name}' not found in Excel file"}
+                raise PluginError(
+                    f"Sheet '{sheet_name}' not found in Excel file",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
-        except ImportError:
-            return {"error": "pandas package is required for Excel processing"}
+        except PluginError:
+            raise
         except Exception as e:
-            return {"error": f"Error reading Excel file: {e}"}
+            raise PluginError(f"Error reading excel file: {e}", plugin_name=DocumentPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -153,7 +174,7 @@ class DocumentPlugin(Plugin):
     )
     def read_excel_structure(file_path: str) -> Dict[str, Any]:
         """
-        Read the structure of an Excel file, including sheet names and column headers.
+        Read the structure of an Excel file, including sheet names and column headers. 
         
         Args:
             file_path: Path to the Excel file
@@ -164,10 +185,19 @@ class DocumentPlugin(Plugin):
         tool_message_print(f"Reading Excel structure: {file_path}")
         
         try:
-            import pandas as pd
+            try:
+                import pandas as pd
+            except ImportError:
+                raise PluginError(
+                    "pandas package is required for Excel processing",
+                    plugin_name=DocumentPlugin.__name__
+                )
             
             if not os.path.exists(file_path):
-                return {"error": f"File not found: {file_path}"}
+                raise PluginError(
+                    f"File not found: {file_path}",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
             # Get Excel file sheet names
             xl = pd.ExcelFile(file_path)
@@ -216,10 +246,10 @@ class DocumentPlugin(Plugin):
             
             return result
                 
-        except ImportError:
-            return {"error": "pandas package is required for Excel processing"}
+        except PluginError:
+            raise
         except Exception as e:
-            return {"error": f"Error reading Excel structure: {e}"}
+            raise PluginError(f"Error reading excel structure: {e}", plugin_name=DocumentPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -228,7 +258,7 @@ class DocumentPlugin(Plugin):
     )
     def read_pdf_text(file_path: str, start_page: int = 1, max_pages: int = None) -> str:
         """
-        Extract text content from a PDF file.
+        Extract text content from a PDF file. 
         
         Args:
             file_path: Path to the PDF file
@@ -241,10 +271,19 @@ class DocumentPlugin(Plugin):
         tool_message_print(f"Reading PDF: {file_path}")
         
         try:
-            import pypdf
+            try:
+                import pypdf
+            except ImportError:
+                raise PluginError(
+                    "pypdf package is required for PDF processing",
+                    plugin_name=DocumentPlugin.__name__
+                )
             
             if not os.path.exists(file_path):
-                return f"Error: File not found: {file_path}"
+                raise PluginError(
+                    f"File not found: {file_path}",
+                    plugin_name=DocumentPlugin.__name__
+                )
             
             # Open the PDF file
             with open(file_path, 'rb') as file:
@@ -281,10 +320,10 @@ class DocumentPlugin(Plugin):
                 
                 return result
                 
-        except ImportError:
-            return "Error: pypdf package is required for PDF processing"
+        except PluginError:
+            raise
         except Exception as e:
-            return f"Error extracting PDF text: {e}"
+            raise PluginError(f"Error reading pdf text: {e}", plugin_name=DocumentPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -293,7 +332,7 @@ class DocumentPlugin(Plugin):
     )
     def convert_excel_to_format(file_path: str, output_format: str = "csv", sheet_name: str = None) -> str:
         """
-        Convert an Excel file to another format.
+        Convert an Excel file to another format. 
         
         Args:
             file_path: Path to the Excel file
@@ -306,11 +345,20 @@ class DocumentPlugin(Plugin):
         tool_message_print(f"Converting Excel to {output_format}: {file_path}")
         
         try:
-            import pandas as pd
-            import json
+            try:
+                import pandas as pd
+                import json
+            except ImportError:
+                raise PluginError(
+                    "pandas package is required for Excel processing",
+                    plugin_name=DocumentPlugin.__name__
+                )
             
             if not os.path.exists(file_path):
-                return f"Error: File not found: {file_path}"
+                raise PluginError(
+                    f"File not found: {file_path}",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
             # Get Excel file sheet names
             xl = pd.ExcelFile(file_path)
@@ -334,16 +382,22 @@ class DocumentPlugin(Plugin):
                 elif output_format.lower() == "markdown" or output_format.lower() == "md":
                     output = df.to_markdown(index=False)
                 else:
-                    return f"Error: Unsupported output format: {output_format}"
+                    raise PluginError(
+                        f"Unsupported output format: {output_format}",
+                        plugin_name=DocumentPlugin.__name__
+                    )
                 
                 # Print summary
                 tool_report_print(f"Converted {len(df)} rows to {output_format} format")
                 
                 return output
             else:
-                return f"Error: Sheet '{sheet_name}' not found in Excel file"
+                raise PluginError(
+                    f"Sheet '{sheet_name}' not found in Excel file",
+                    plugin_name=DocumentPlugin.__name__
+                )
                 
-        except ImportError:
-            return "Error: pandas package is required for Excel processing"
+        except PluginError:
+            raise
         except Exception as e:
-            return f"Error converting Excel: {e}"
+            raise PluginError(f"Error converting excel format: {e}", plugin_name=DocumentPlugin.__name__) from e

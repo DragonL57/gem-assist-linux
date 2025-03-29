@@ -1,3 +1,4 @@
+# Previous content remains the same up until get_youtube_transcript method
 """
 Network plugin providing web and internet operations.
 """
@@ -9,7 +10,7 @@ import time
 import re
 from typing import Dict, Any, List, Optional
 
-from plugins import Plugin, tool, capability
+from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
 class NetworkPlugin(Plugin):
@@ -72,7 +73,7 @@ class NetworkPlugin(Plugin):
             return text
             
         except Exception as e:
-            return f"Error fetching website: {e}"
+            raise PluginError(f"Error fetching website content: {e}", plugin_name=NetworkPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -135,8 +136,8 @@ class NetworkPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"error": str(e)}
-
+            raise PluginError(f"Error making http GET request: {e}", plugin_name=NetworkPlugin.__name__) from e
+    
     @staticmethod
     @tool(
         categories=["web", "multimedia"],
@@ -145,7 +146,7 @@ class NetworkPlugin(Plugin):
     )
     def get_youtube_transcript(video_url: str, languages: List[str] = None) -> str:
         """
-        Get the transcript of a YouTube video.
+        Get the transcript of a YouTube video. 
         
         Args:
             video_url: YouTube video URL or ID
@@ -156,11 +157,17 @@ class NetworkPlugin(Plugin):
         """
         tool_message_print(f"Getting transcript for: {video_url}")
         
-        if languages is None:
-            languages = ['en']
-            
         try:
-            from youtube_transcript_api import YouTubeTranscriptApi
+            try:
+                from youtube_transcript_api import YouTubeTranscriptApi
+            except ImportError:
+                raise PluginError(
+                    "youtube_transcript_api package is required for this tool",
+                    plugin_name=NetworkPlugin.__name__
+                )
+            
+            if languages is None:
+                languages = ['en']
             
             # Extract video ID from URL if needed
             if 'youtube.com' in video_url or 'youtu.be' in video_url:
@@ -171,90 +178,98 @@ class NetworkPlugin(Plugin):
                 elif 'youtu.be/' in video_url:
                     video_id = video_url.split('youtu.be/')[1].split('?')[0]
                 else:
-                    return "Error: Could not extract video ID from URL"
+                    raise PluginError(
+                        "Could not extract video ID from URL",
+                        plugin_name=NetworkPlugin.__name__
+                    )
             else:
                 # Assume the input is already a video ID
                 video_id = video_url
                 
             if not video_id:
-                return "Error: No video ID found"
+                raise PluginError("No video ID found", plugin_name=NetworkPlugin.__name__)
                 
-            # Try to get transcript in the specified languages
+            # Try to get transcript
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            # First try: Get transcript in one of the specified languages
             try:
-                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-                
-                # First try: Get transcript in one of the specified languages
+                transcript = transcript_list.find_transcript(languages)
+            except Exception:
+                # Second try: Get English transcript if available
                 try:
-                    transcript = transcript_list.find_transcript(languages)
-                except:
-                    # Second try: Get English transcript if available
+                    transcript = transcript_list.find_transcript(['en'])
+                except Exception:
+                    # If all fails, try to get any available transcript
                     try:
-                        transcript = transcript_list.find_transcript(['en'])
-                    except:
-                        # If all fails, try to get any available transcript
-                        try:
-                            transcript = next(iter(transcript_list._manually_created_transcripts.values()), 
-                                           next(iter(transcript_list._generated_transcripts.values()), None))
-                        except:
-                            return "Error: No transcript available for this video"
+                        transcript = next(iter(transcript_list._manually_created_transcripts.values()), 
+                                       next(iter(transcript_list._generated_transcripts.values()), None))
+                    except Exception:
+                        raise PluginError(
+                            "No transcript available for this video",
+                            plugin_name=NetworkPlugin.__name__
+                        )
+            
+            if not transcript:
+                raise PluginError(
+                    "No transcript available for this video",
+                    plugin_name=NetworkPlugin.__name__
+                )
                 
-                if not transcript:
-                    return "Error: No transcript available for this video"
+            # Fetch the transcript data
+            transcript_data = transcript.fetch()
+            
+            # Format the transcript with timestamps
+            formatted_transcript = []
+            for entry in transcript_data:
+                try:
+                    # Handle both dictionary entries and object entries
+                    if hasattr(entry, 'start') and hasattr(entry, 'text'):
+                        # It's an object with attributes
+                        start_time = int(entry.start)
+                        text = entry.text.strip()
+                    elif isinstance(entry, dict):
+                        # It's a dictionary
+                        start_time = int(entry.get('start', 0))
+                        text = entry.get('text', '').strip()
+                    else:
+                        # Unknown format, try direct access
+                        start_time = int(entry['start']) if 'start' in entry else 0
+                        text = str(entry['text']).strip() if 'text' in entry else ''
                     
-                # Fetch the transcript data
-                transcript_data = transcript.fetch()
-                
-                # Format the transcript with timestamps
-                formatted_transcript = []
-                for entry in transcript_data:
-                    try:
-                        # Handle both dictionary entries and object entries
-                        if hasattr(entry, 'start') and hasattr(entry, 'text'):
-                            # It's an object with attributes
-                            start_time = int(entry.start)
-                            text = entry.text.strip()
-                        elif isinstance(entry, dict):
-                            # It's a dictionary
-                            start_time = int(entry.get('start', 0))
-                            text = entry.get('text', '').strip()
-                        else:
-                            # Unknown format, try direct access
-                            start_time = int(entry['start']) if 'start' in entry else 0
-                            text = str(entry['text']).strip() if 'text' in entry else ''
-                        
-                        minutes = start_time // 60
-                        seconds = start_time % 60
-                        timestamp = f"[{minutes:02d}:{seconds:02d}]"
-                        formatted_transcript.append(f"{timestamp} {text}")
-                    except (KeyError, TypeError, ValueError, AttributeError) as e:
-                        # Skip problematic entries
-                        continue
-                
-                # Add video title if we can get it
-                try:
-                    import requests
-                    from bs4 import BeautifulSoup
-                    response = requests.get(f"https://www.youtube.com/watch?v={video_id}")
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    title = soup.find('title').text.replace(' - YouTube', '')
-                    header = f"Video: {title}\n\n"
-                except:
-                    header = ""
-                
-                # Join transcript parts
-                result = header + "\n".join(formatted_transcript)
-                
-                tool_report_print(f"Successfully retrieved transcript with {len(formatted_transcript)} segments")
-                return result
-                
-            except Exception as e:
-                return f"Error getting transcript: {str(e)}"
-                
-        except ImportError:
-            return "Error: youtube_transcript_api package is required for this tool"
+                    minutes = start_time // 60
+                    seconds = start_time % 60
+                    timestamp = f"[{minutes:02d}:{seconds:02d}]"
+                    formatted_transcript.append(f"{timestamp} {text}")
+                except (KeyError, TypeError, ValueError, AttributeError):
+                    # Skip problematic entries
+                    continue
+            
+            # Add video title if we can get it
+            try:
+                response = requests.get(
+                    f"https://www.youtube.com/watch?v={video_id}",
+                    headers={'User-Agent': random.choice(NetworkPlugin.USER_AGENTS)}
+                )
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+                title = soup.find('title').text.replace(' - YouTube', '')
+                header = f"Video: {title}\n\n"
+            except Exception:
+                header = ""
+            
+            # Join transcript parts
+            result = header + "\n".join(formatted_transcript)
+            
+            tool_report_print(f"Successfully retrieved transcript with {len(formatted_transcript)} segments")
+            return result
+            
+        except PluginError:
+            raise
         except Exception as e:
-            return f"Error: {str(e)}"
+            raise PluginError(f"Error getting youtube transcript: {e}", plugin_name=NetworkPlugin.__name__) from e
 
+    # Rest of the file remains the same
     @staticmethod
     @tool(
         categories=["web", "api"],
@@ -318,7 +333,7 @@ class NetworkPlugin(Plugin):
             return result
             
         except Exception as e:
-            return {"error": str(e)}
+            raise PluginError(f"Error making http POST request: {e}", plugin_name=NetworkPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -327,7 +342,7 @@ class NetworkPlugin(Plugin):
     )
     def open_url(url: str) -> Dict[str, Any]:
         """
-        Open a URL in the default web browser.
+        Open a URL in the default web browser. 
         
         Args:
             url: The URL to open
@@ -354,13 +369,13 @@ class NetworkPlugin(Plugin):
                     "message": f"URL opened in default browser: {url}"
                 }
             else:
-                return {
-                    "success": False,
-                    "error": "Failed to open URL in browser"
-                }
+                raise PluginError(
+                    "Failed to open URL in browser",
+                    plugin_name=NetworkPlugin.__name__
+                )
                 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            raise PluginError(f"Error opening URL in browser: {e}", plugin_name=NetworkPlugin.__name__) from e
     
     @staticmethod
     @tool(
@@ -370,7 +385,7 @@ class NetworkPlugin(Plugin):
     )
     def download_file_from_url(url: str, output_path: str = None, chunk_size: int = 8192) -> Dict[str, Any]:
         """
-        Download a file from a URL.
+        Download a file from a URL. 
         
         Args:
             url: URL of the file to download
@@ -434,12 +449,12 @@ class NetworkPlugin(Plugin):
             }
             
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            raise PluginError(f"Error downloading file from url: {e}", plugin_name=NetworkPlugin.__name__) from e
     
     @staticmethod
     def resolve_filename_from_url(url: str, headers: Dict[str, str] = None) -> str:
         """
-        Resolve a filename from URL and response headers.
+        Resolve a filename from URL and response headers. 
         
         Args:
             url: The URL of the file
@@ -448,46 +463,50 @@ class NetworkPlugin(Plugin):
         Returns:
             Resolved filename
         """
-        # Try to get filename from Content-Disposition header
-        if headers and 'Content-Disposition' in headers:
-            content_disposition = headers['Content-Disposition']
-            filename_match = re.search(r'filename=[\'"]?([^\'"\s]+)[\'"]?', content_disposition)
-            if filename_match:
-                return filename_match.group(1)
+        try:
+            # Try to get filename from Content-Disposition header
+            if headers and 'Content-Disposition' in headers:
+                content_disposition = headers['Content-Disposition']
+                filename_match = re.search(r'filename=[\'"]?([^\'"\s]+)[\'"]?', content_disposition)
+                if filename_match:
+                    return filename_match.group(1)
+            
+            # Try to get filename from URL path
+            parsed_url = urllib.parse.urlparse(url)
+            url_path = parsed_url.path
+            
+            # Get the last part of the path
+            filename = os.path.basename(url_path)
+            
+            # If there's no filename or it has no extension
+            if not filename or '.' not in filename:
+                # Try to derive from content type
+                if headers and 'Content-Type' in headers:
+                    content_type = headers['Content-Type'].split(';')[0].strip()
+                    ext = {
+                        'text/plain': '.txt',
+                        'text/html': '.html',
+                        'text/css': '.css',
+                        'text/javascript': '.js',
+                        'application/pdf': '.pdf',
+                        'application/json': '.json',
+                        'application/xml': '.xml',
+                        'image/jpeg': '.jpg',
+                        'image/png': '.png',
+                        'image/gif': '.gif',
+                        'application/zip': '.zip'
+                    }.get(content_type, '.bin')
+                    
+                    # Use a timestamp as filename
+                    timestamp = int(time.time())
+                    return f"download_{timestamp}{ext}"
+            
+            # Return the filename, or a default if all else fails
+            return filename if filename else f"download_{int(time.time())}.bin"
+
+        except Exception as e:
+            raise PluginError(f"Error resolving filename from url: {e}", plugin_name=NetworkPlugin.__name__) from e
         
-        # Try to get filename from URL path
-        parsed_url = urllib.parse.urlparse(url)
-        url_path = parsed_url.path
-        
-        # Get the last part of the path
-        filename = os.path.basename(url_path)
-        
-        # If there's no filename or it has no extension
-        if not filename or '.' not in filename:
-            # Try to derive from content type
-            if headers and 'Content-Type' in headers:
-                content_type = headers['Content-Type'].split(';')[0].strip()
-                ext = {
-                    'text/plain': '.txt',
-                    'text/html': '.html',
-                    'text/css': '.css',
-                    'text/javascript': '.js',
-                    'application/pdf': '.pdf',
-                    'application/json': '.json',
-                    'application/xml': '.xml',
-                    'image/jpeg': '.jpg',
-                    'image/png': '.png',
-                    'image/gif': '.gif',
-                    'application/zip': '.zip'
-                }.get(content_type, '.bin')
-                
-                # Use a timestamp as filename
-                timestamp = int(time.time())
-                return f"download_{timestamp}{ext}"
-        
-        # Return the filename, or a default if all else fails
-        return filename if filename else f"download_{int(time.time())}.bin"
-    
     @staticmethod
     @tool(
         categories=["web", "download"],
@@ -526,4 +545,4 @@ class NetworkPlugin(Plugin):
             }
             
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            raise PluginError(f"Error resolving filename from url: {e}", plugin_name=NetworkPlugin.__name__) from e

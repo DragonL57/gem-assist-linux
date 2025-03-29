@@ -79,17 +79,7 @@ class Settings(BaseSettings):
         description="Maximum number of Reddit comments to fetch (-1 for all)"
     )
 
-    # Theme settings - will be moved to themes.yml
-    THEME_LOCALS: Dict[str, str] = Field(
-        default={
-            "PRIMARY": "#584ea8",
-            "SECONDARY": "#4a4464",
-            "ACCENT": "#7c6f9f",
-            "BACKGROUND": "#f5f5f5",
-            "TEXT": "#333333",
-        },
-        description="Theme color configuration"
-    )
+    # NOTE: THEME_LOCALS removed, themes are loaded from config/themes.yml
 
     # Location service settings
     LOCATION_API_URL: str = Field(
@@ -100,6 +90,22 @@ class Settings(BaseSettings):
         default=10,
         gt=0,
         description="Location service timeout in seconds"
+    )
+
+    # Reasoning Enhancement Settings
+    ENABLE_REASONING_VALIDATION: bool = Field(
+        default=True,
+        description="Enable automatic validation of reasoning"
+    )
+    REQUIRE_USER_VERIFICATION: bool = Field(
+        default=False,
+        description="Require user to approve reasoning plan"
+    )
+    REASONING_QUALITY_THRESHOLD: float = Field(
+        default=0.7,
+        ge=0.0,
+        le=1.0,
+        description="Minimum score for reasoning to proceed"
     )
 
     class Config:
@@ -125,15 +131,7 @@ class Settings(BaseSettings):
             """
             return env_settings, file_secret_settings, init_settings
 
-    @validator("THEME_LOCALS")
-    def validate_theme_colors(cls, v: Dict[str, str]) -> Dict[str, str]:
-        """Validate theme color hex codes."""
-        for key, color in v.items():
-            if not color.startswith("#"):
-                raise ValueError(f"Color {key} must start with #")
-            if len(color) != 7:  # #RRGGBB format
-                raise ValueError(f"Color {key} must be in #RRGGBB format")
-        return v
+    # NOTE: validate_theme_colors removed as THEME_LOCALS is removed.
 
 
 # Create settings instance
@@ -160,16 +158,5 @@ def initialize_settings(env_file: Optional[str] = None) -> None:
     else:
         settings = Settings()
 
-# Backwards compatibility
-MODEL = settings.MODEL
-NAME = settings.NAME
-TEMPERATURE = settings.TEMPERATURE
-TOP_P = settings.TOP_P
-MAX_TOKENS = settings.MAX_TOKENS
-SEED = settings.SEED
-DEBUG_MODE = settings.DEBUG_MODE
-CLEAR_TERMINAL = settings.CLEAR_TERMINAL
-CLEAR_BEFORE_START = CLEAR_TERMINAL  # For backward compatibility
-TAKE_ONLY_ONE_MESSAGE = settings.TAKE_ONLY_ONE_MESSAGE
-PRINT_OS_ERROR = settings.PRINT_OS_ERROR
-THEME_LOCALS = settings.THEME_LOCALS
+# NOTE: Backward compatibility variables removed (lines 180-191).
+# Access settings via the 'settings' object or get_settings().

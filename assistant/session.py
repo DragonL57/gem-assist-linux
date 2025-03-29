@@ -3,6 +3,7 @@ Session management for the assistant.
 """
 import os
 import pickle
+import asyncio
 from typing import Dict, Any, List, Optional
 from colorama import Fore, Style
 from gem.command import cmd
@@ -53,7 +54,7 @@ class SessionManager:
         self.assistant = assistant
         
     @cmd(["save"], "Saves the current chat session to pickle file.")
-    def save_session(self, name: str, filepath: str = "chats") -> None:
+    async def save_session(self, name: str, filepath: str = "chats") -> None:
         """
         Save the current chat session to a file.
         
@@ -67,8 +68,10 @@ class SessionManager:
                 os.makedirs(filepath, exist_ok=True)
 
             final_path = os.path.join(filepath, name + ".pkl")
-            with open(final_path, "wb") as f:
-                pickle.dump(self.assistant.messages, f)
+            
+            # Run file operations in thread pool
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._save_to_file, final_path, self.assistant.messages)
 
             print(
                 f"{Fore.GREEN}Chat session saved to {Fore.BLUE}{final_path}{Style.RESET_ALL}"
@@ -76,8 +79,13 @@ class SessionManager:
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
             
+    def _save_to_file(self, path: str, data: Any) -> None:
+        """Helper method to save data to a file."""
+        with open(path, "wb") as f:
+            pickle.dump(data, f)
+            
     @cmd(["load"], "Loads a chat session from a pickle file. Resets the session.")
-    def load_session(self, name: str, filepath: str = "chats") -> None:
+    async def load_session(self, name: str, filepath: str = "chats") -> None:
         """
         Load a chat session from a file.
         
@@ -87,8 +95,11 @@ class SessionManager:
         """
         try:
             final_path = os.path.join(filepath, name + ".pkl")
-            with open(final_path, "rb") as f:
-                self.assistant.messages = pickle.load(f)
+            
+            # Run file operations in thread pool
+            loop = asyncio.get_event_loop()
+            self.assistant.messages = await loop.run_in_executor(None, self._load_from_file, final_path)
+            
             print(
                 f"{Fore.GREEN}Chat session loaded from {Fore.BLUE}{final_path}{Style.RESET_ALL}"
             )
@@ -98,9 +109,14 @@ class SessionManager:
             )
         except Exception as e:
             print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            
+    def _load_from_file(self, path: str) -> Any:
+        """Helper method to load data from a file."""
+        with open(path, "rb") as f:
+            return pickle.load(f)
     
     @cmd(["reset"], "Resets the chat session but keeps the terminal display.")
-    def reset_session(self, force: bool = False) -> None:
+    async def reset_session(self, force: bool = False) -> None:
         """
         Reset the chat session but keeps the system instruction if present.
         """

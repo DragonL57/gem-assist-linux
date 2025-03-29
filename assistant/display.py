@@ -5,6 +5,7 @@ import os
 from typing import Any
 from rich.console import Console
 from rich.markdown import Markdown
+from config import get_config
 
 class AssistantDisplay:
     """Handles the display of assistant output."""
@@ -43,8 +44,12 @@ class AssistantDisplay:
         # Add a blank line after assistant response for better readability
         self.assistant.console.print()
         
-    def show_reasoning(self, reasoning: str) -> None:
-        """Display the reasoning plan with proper formatting."""
+    def show_reasoning(self, reasoning: str) -> bool:
+        """Display the reasoning plan with proper formatting and ask for user verification.
+        
+        Returns:
+            bool: True if user approves the plan, False otherwise.
+        """
         # Get console width for proper text wrapping
         console_width = os.get_terminal_size().columns if hasattr(os, 'get_terminal_size') else 80
         effective_width = console_width - 4  # Allow for some margin
@@ -62,18 +67,29 @@ class AssistantDisplay:
         
         self.assistant.console.print()
         
+        # Ask for user verification
+        response = self.assistant.console.input("[bold blue]Proceed with this reasoning plan? (y/n/edit): [/bold blue]")
+        
+        if response.lower() == 'edit':
+            self.assistant.console.print("[yellow]Opening editor for plan modification...[/yellow]")
+            # Implementation of editor opening logic here
+            # ...
+            return True
+        
+        return response.lower() in ['y', 'yes', '']
+        
     def display_debug_info(self, message: str) -> None:
         """Display debug information with subtle styling."""
-        import config as conf
-        if conf.DEBUG_MODE:
+        config = get_config()
+        if config.settings.DEBUG_MODE:
             self.assistant.console.print()
             self.assistant.console.print(message, style="debug")
             self.assistant.console.print()
             
     def extract_and_display_reasoning(self, response: Any) -> None:
         """Extract and display model reasoning if in debug mode."""
-        import config as conf
-        if conf.DEBUG_MODE and hasattr(response, 'choices') and len(response.choices) > 0:
+        config = get_config()
+        if config.settings.DEBUG_MODE and hasattr(response, 'choices') and len(response.choices) > 0:
             response_message = response.choices[0].message
             if hasattr(response_message, 'content') and response_message.content:
                 reasoning = response_message.content.strip()
