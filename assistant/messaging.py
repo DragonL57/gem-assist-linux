@@ -8,42 +8,34 @@ import asyncio
 from .exceptions.base import MessageProcessingError, AsyncOperationError, APICallError
 
 from config import get_config
+from config.services.context import format_prompt_with_context # Import formatter
 
 class MessageProcessor:
     """Handles message processing and conversation flow."""
-    
-    def __init__(
-        self,
-        assistant,
-        temperature: Optional[float] = None,
-        top_p: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        seed: Optional[int] = None
-    ):
+
+    def __init__(self, assistant):
         """Initialize with parent assistant reference."""
         self.assistant = assistant
-        
-        # Get configuration
-        config = get_config()
-        
-        # Model parameters (use passed values or config defaults)
-        self.temperature = temperature if temperature is not None else config.settings.TEMPERATURE
-        self.top_p = top_p if top_p is not None else config.settings.TOP_P
-        self.max_tokens = max_tokens if max_tokens is not None else config.settings.MAX_TOKENS
-        self.seed = seed if seed is not None else config.settings.SEED
-        self.safety_settings = config.safety_settings
+        # NOTE: Model parameters (temperature, top_p, etc.) are no longer stored here.
+        # The Assistant class will fetch them directly from config when needed.
 
     async def process_with_reasoning(self, message: str, reasoning: str) -> Dict[str, Any]:
         """Process a user message with the reasoning already generated."""
         self._validate_message_input(message, reasoning)
+        config = get_config() # Fetch config
 
         # Create a new message list for execution phase
         execution_messages = []
 
-        # Add the base execution system prompt
+        # Format and add the execution system prompt
+        execution_prompt_template = config.prompt_manager.execution_prompt
+        formatted_execution_prompt = await format_prompt_with_context(
+            execution_prompt_template,
+            self.assistant.name # Use assistant's name for context
+        )
         execution_messages.append({
             "role": "system",
-            "content": f"{get_config().execution_prompt}\n\nYour reasoning plan: {reasoning}"
+            "content": f"{formatted_execution_prompt}\n\nYour reasoning plan: {reasoning}"
         })
 
         # Add the conversation history (except the system message)
@@ -60,7 +52,7 @@ class MessageProcessor:
         try:
             # Get the execution response with completely separate message context
             response = await self.assistant.get_completion_with_retry(execution_messages)
-            
+
             # Process response but handle potential None/invalid cases
             if not response:
                 raise MessageProcessingError(
@@ -68,9 +60,9 @@ class MessageProcessor:
                     phase="execution",
                     details={"response": str(response)}
                 )
-            
+
             return await self.process_response(response)
-            
+
         except Exception as e:
             if isinstance(e, (MessageProcessingError, APICallError)):
                 raise e
@@ -85,7 +77,7 @@ class MessageProcessor:
         try:
             # Pre-validate response format
             self._validate_response_input(response)
-            
+
             if not hasattr(response.choices[0], 'message'):
                 raise MessageProcessingError(
                     message="Invalid response format - missing message attribute",
@@ -120,14 +112,14 @@ class MessageProcessor:
 
                 # Get the final response after tool execution
                 final_response = await self.assistant.get_completion()
-                
+
                 if not final_response or not hasattr(final_response, 'choices'):
                     raise MessageProcessingError(
                         message="Invalid final response format",
                         phase="response_processing",
                         details={"response": str(final_response)}
                     )
-                
+
                 tool_calls = getattr(final_response.choices[0].message, 'tool_calls', None)
 
                 if not tool_calls:
@@ -146,7 +138,7 @@ class MessageProcessor:
                 if print_response and hasattr(response_message, 'content'):
                     self.assistant.display.print_ai(response_message.content)
                 return response_message
-                
+
         except Exception as e:
             self.assistant.console.print(f"[error]Error in processing response: {e}[/]")
             traceback.print_exc()
@@ -191,20 +183,20 @@ class MessageProcessor:
                 message="Response cannot be None or empty",
                 phase="response_validation"
             )
-            
+
         if not hasattr(response, 'choices') or not isinstance(response.choices, list):
             raise MessageProcessingError(
                 message="Response must have a 'choices' attribute that is a list",
                 phase="response_validation",
                 details={"response_type": str(type(response))}
             )
-            
+
         if not response.choices:
             raise MessageProcessingError(
                 message="Response choices cannot be empty",
                 phase="response_validation"
             )
-            
+
         if not hasattr(response.choices[0], 'message'):
             raise MessageProcessingError(
                 message="Response choice must have a 'message' attribute",

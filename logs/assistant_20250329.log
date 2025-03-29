@@ -1,0 +1,6 @@
+2025-03-29 23:04:16,623 - assistant - INFO - Starting message processing
+2025-03-29 23:04:16,624 - assistant - ERROR - [REASONING_FAILURE] Failed during reasoning phase
+2025-03-29 23:11:11,843 - assistant - INFO - Starting message processing
+2025-03-29 23:11:16,122 - assistant - ERROR - [EXECUTION_FAILURE] Failed during execution phase
+2025-03-29 23:20:14,073 - assistant - INFO - Starting message processing
+2025-03-29 23:20:23,209 - assistant - INFO - Message processing completed successfully

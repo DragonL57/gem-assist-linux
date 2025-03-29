@@ -33,23 +33,9 @@ from assistant.execution import ToolExecutor, ToolDisplayManager
 from assistant.session import SessionManager
 from assistant.conversion import TypeConverter
 
-# Define a custom theme for the application
-CUSTOM_THEME = Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "bold red",
-    "success": "bold green",
-    "user": "bold magenta",
-    "assistant": "bold green",
-    "tool": "cyan",
-    "header": "bold blue on default",
-    "command": "bold yellow",
-    "debug": "dim cyan",
-    "reasoning": "dim italic yellow",
-})
+# NOTE: CUSTOM_THEME removed as it was redundant. Theme is loaded from config.
 
-# Define search-related tools for concise output
-SEARCH_TOOLS = ["web_search", "reddit_search"]
+# NOTE: SEARCH_TOOLS constant removed as it was unused.
 
 class Assistant:
     """
@@ -92,7 +78,7 @@ class Assistant:
         self.name = name or config.settings.NAME
         self.system_instruction = system_instruction
         self.messages = []
-        self.console = Console(theme=CUSTOM_THEME)
+        # self.console = Console(theme=CUSTOM_THEME) # Removed redundant console creation
         self.last_reasoning = None
 
     def _initialize_logging(self, log_level):
@@ -225,16 +211,18 @@ class Assistant:
 
     async def get_completion(self) -> Any:
         """Get a completion from the model with the current messages and tools."""
+        from config import get_config # Import here to avoid circular dependency at top level
+        config = get_config()
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, lambda: litellm.completion(
             model=self.model,
             messages=self.messages,
             tools=self.tools,
-            temperature=self.message_processor.temperature,
-            top_p=self.message_processor.top_p,
-            max_tokens=self.message_processor.max_tokens,
-            seed=self.message_processor.seed,
-            safety_settings=self.message_processor.safety_settings
+            temperature=config.settings.TEMPERATURE, # Fetch from config
+            top_p=config.settings.TOP_P,             # Fetch from config
+            max_tokens=config.settings.MAX_TOKENS,   # Fetch from config
+            seed=config.settings.SEED,               # Fetch from config
+            safety_settings=config.safety_settings   # Fetch from config
         ))
 
     async def get_completion_with_retry(self, messages: List[Dict[str, Any]] = None, max_retries: int = 3) -> Any:
@@ -243,16 +231,18 @@ class Assistant:
         
         for attempt in range(max_retries):
             try:
+                from config import get_config # Import here to avoid circular dependency at top level
+                config = get_config()
                 loop = asyncio.get_event_loop()
                 return await loop.run_in_executor(None, lambda: litellm.completion(
                     model=self.model,
                     messages=messages_to_use,
                     tools=self.tools,
-                    temperature=self.message_processor.temperature,
-                    top_p=self.message_processor.top_p,
-                    max_tokens=self.message_processor.max_tokens,
-                    seed=self.message_processor.seed,
-                    safety_settings=self.message_processor.safety_settings
+                    temperature=config.settings.TEMPERATURE, # Fetch from config
+                    top_p=config.settings.TOP_P,             # Fetch from config
+                    max_tokens=config.settings.MAX_TOKENS,   # Fetch from config
+                    seed=config.settings.SEED,               # Fetch from config
+                    safety_settings=config.safety_settings   # Fetch from config
                 ))
             except Exception as e:
                 if "resource exhausted" in str(e).lower() and attempt < max_retries - 1:
