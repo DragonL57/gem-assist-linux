@@ -315,3 +315,39 @@ class FileSystemPlugin(Plugin):
             raise
         except Exception as e:
             raise PluginError(f"Error reading file: {e}", plugin_name=FileSystemPlugin.__name__) from e
+
+    @staticmethod
+    @tool(
+        categories=["filesystem", "io"],
+        requires_filesystem=True,
+        example_usage="write_file('path/to/new_file.txt', 'Hello, world!')"
+    )
+    def write_file(filepath: str, content: str) -> str:
+        """
+        Writes the given content to a specified file, overwriting it if it exists.
+        Creates any necessary directories.
+
+        Args:
+            filepath: Path to the file to write to.
+            content: The string content to write to the file.
+
+        Returns:
+            A confirmation message indicating success.
+        """
+        tool_message_print(f"Writing to file: {filepath}")
+        try:
+            # Ensure the directory exists
+            dirpath = os.path.dirname(filepath)
+            if dirpath and not os.path.exists(dirpath):
+                os.makedirs(dirpath, exist_ok=True)
+                tool_message_print(f"Created directory: {dirpath}")
+
+            # Write content to the file, overwriting existing content
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+            return f"Successfully wrote content to {filepath}"
+
+        except Exception as e:
+            raise PluginError(f"Error writing to file: {e}", plugin_name=FileSystemPlugin.__name__) from e
+
