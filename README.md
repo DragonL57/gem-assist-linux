@@ -16,29 +16,30 @@ This Linux fork provides substantial improvements over the original project:
 
 - **Agentic Workflow**: Implemented a more dynamic workflow including planning, execution, and self-reflection.
 - **Enhanced Terminal UI**: Improved console interaction and display formatting.
-- **Extended Tool Set**: Added numerous new tools including arXiv research paper integration.
+- **Refined Tool Set**: Added numerous new tools and consolidated others for better quality and usability (now 30 tools).
 - **YouTube Transcript Analysis**: Added capability to extract and analyze video content.
-- **Improved Web Content Extraction**: Better handling of complex websites and content extraction.
+- **Consolidated Web Scraping**: Merged multiple web tools into a single powerful `advanced_web_scrape` tool.
 - **Research Tools**: New tools for scholarly research and academic paper analysis.
 - **Linux Compatibility**: Fixed various issues that prevented proper functionality on Linux systems.
 - **Comprehensive System Information**: Enhanced system information collection and reporting.
+- **Improved Prompting**: Enhanced system prompts for more efficient tool usage and creative problem-solving.
 
 ## 🌟 Key Features
 
 - **Agentic Workflow**: Plans approach, executes tools dynamically, reflects on the process, and then responds.
-- **Rich Tool Ecosystem**: 40+ specialized tools for file operations, web searches, code execution, and more.
+- **Rich Tool Ecosystem**: **30 specialized tools** across 8 categories for file operations, web interaction, code execution, research, and more.
 - **Research Capabilities**: Direct access to academic papers through arXiv integration.
 - **YouTube Analysis**: Extract and analyze video transcripts.
-- **Efficient Web Strategy**: Smart search tools to avoid rate limits while maximizing information quality.
-- **Local File Access**: Read and manipulate various file types including PDFs, Word documents, and Excel files.
+- **Efficient Web Strategy**: Prompting guides the assistant to use broad searches followed by targeted content extraction with the `advanced_web_scrape` tool to avoid rate limits.
+- **Local File Access**: Read and manipulate various file types including Excel files, plus text extraction from PDFs/Word via `filesystem.read_file`.
 - **Customizable**: Easy configuration through YAML files and settings.
 
 ## 🏗️ Architecture
 
 Gem-assist-linux uses an agentic approach to solve problems:
 
-1.  **Planning Phase**: The assistant first analyzes the query and determines the necessary steps and tools. (This plan is usually internal or shown concisely in debug mode).
-2.  **Execution Phase**: The assistant executes the planned tool calls sequentially, potentially adapting based on results (adaptation logic is under development).
+1.  **Planning Phase**: The assistant first analyzes the query and determines the necessary steps and tools, following efficiency guidelines (e.g., for web searches). (This plan is usually internal or shown concisely in debug mode).
+2.  **Execution Phase**: The assistant executes the planned tool calls sequentially, potentially adapting based on results or using creative fallbacks (e.g., `run_shell_command`) if specific tools fail or are missing.
 3.  **Reflection Phase (Internal)**: After execution, the assistant internally assesses the process, the quality of gathered information, and its confidence level.
 4.  **Response Phase**: The assistant synthesizes the gathered information, potentially informed by the reflection, to generate the final response for the user.
 
@@ -64,7 +65,7 @@ The assistant consists of several interconnected components that work together:
 - **ToolExecutor**: Executes individual tool calls.
 - **Reflection Engine (within MessageProcessor)**: Assesses the execution process and results.
 - **SessionManager**: Manages conversation history and persistence.
-- **Tool Collection**: Library of 40+ specialized tools across categories.
+- **Tool Collection**: Library of **30 specialized tools** across 8 categories.
 
 ```mermaid
 graph TB
@@ -79,11 +80,14 @@ graph TB
     Messaging --Orchestrates--> ToolExec
     Messaging --Performs--> Reflection((Internal Reflection))
     ToolExec --Executes--> Tools[(Tool Collection)]
-    Tools --Categories--> Files[File Tools]
-    Tools --Categories--> Web[Web Tools]
-    Tools --Categories--> Search[Search Tools]
+    Tools --Categories--> Files[Filesystem]
+    Tools --Categories--> Web[Web]
+    Tools --Categories--> Search[Search]
     Tools --Categories--> Code[Code Execution]
-    Tools --Categories--> Research[Research Tools]
+    Tools --Categories--> System[System]
+    Tools --Categories--> Research[Research]
+    Tools --Categories--> Docs[Document Formats]
+    Tools --Categories--> Mgmt[Tool Management]
 ```
 
 ## 🚀 Getting Started
@@ -112,16 +116,17 @@ graph TB
     # For all optional dependencies
     uv pip install -e ".[all]"
 
-    # Or install specific feature groups
-    uv pip install -e ".[data-analysis,web-scraping,dynamic-web,documents]"
+    # Or install specific feature groups (e.g., web scraping needs selenium)
+    uv pip install -e ".[web, research, document_formats, code_execution]"
     ```
+    *Note: See `pyproject.toml` for available extras.*
 
 4.  **Configure API keys**:
     Create a `.env` file in the project root with your API keys:
     ```
     GEMINI_API_KEY=your_api_key_here
-    REDDIT_ID=your_reddit_client_id  # Optional
-    REDDIT_SECRET=your_reddit_client_secret  # Optional
+    REDDIT_ID=your_reddit_client_id  # Optional for reddit search tool
+    REDDIT_SECRET=your_reddit_client_secret  # Optional for reddit search tool
     ```
 
 ## 📋 Usage
@@ -171,17 +176,18 @@ Type `/help` to see available commands. Some useful ones include:
 
 ## 🛠️ Tool Categories
 
-Gem-assist-linux includes tools across several categories:
+Gem-assist-linux includes tools across 8 consolidated categories:
 
-| Category | Tools | Description |
-|----------|-------|-------------|
-| **File System** | `list_dir`, `read_file`, `write_file`, etc. | Interact with local files and directories |
-| **Web** | `get_website_text_content`, `smart_content_extraction`, `get_youtube_transcript` | Extract and process web content |
-| **Search** | `web_search`, `reddit_search` | Find information online |
-| **Document Processing** | `read_excel_file`, `read_pdf_text`, `convert_document` | Work with various document formats |
-| **Code Execution** | `execute_python_code`, `analyze_pandas_dataframe` | Run Python code and analyze data |
-| **Research** | `get_arxiv_paper`, `summarize_research_paper` | Access and analyze academic papers |
-| **System** | `get_system_info`, `run_shell_command` | Interact with your operating system |
+| Category | Example Tools | Description |
+|----------|---------------|-------------|
+| **`filesystem`** | `list_dir`, `read_file`, `write_file`, `zip_archive_files`, `get_file_metadata` | Interact with local files, directories, and archives. `read_file` handles text extraction from PDF/DOCX. |
+| **`web`** | `advanced_web_scrape`, `http_get_request`, `download_file_from_url`, `get_youtube_transcript` | Fetch, scrape, extract content (text, smart, structured, tables, dynamic JS), and interact with web resources. |
+| **`search`** | `web_search`, `reddit_search` | Perform searches on the web or specific platforms like Reddit. |
+| **`code_execution`** | `execute_python_code`, `analyze_pandas_dataframe` | Execute Python code snippets and perform data analysis with Pandas. |
+| **`system`** | `run_shell_command`, `get_system_info`, `run_parallel_commands` | Interact with the operating system, run shell commands, and get system details. |
+| **`research`** | `get_arxiv_paper`, `summarize_research_paper` | Access and analyze academic papers from arXiv. |
+| **`document_formats`** | `read_excel_file`, `read_excel_structure`, `convert_excel_to_format` | Work specifically with complex document formats like Excel spreadsheets. |
+| **`tool_management`** | `find_tools` | Meta-tools for discovering available tools. |
 
 ## ⚙️ Configuration
 
@@ -208,8 +214,8 @@ uv run pytest tests/
 Gem-assist-linux supports various workflows leveraging its agentic nature and tools:
 
 ### Research Workflow
-1.  **Plan:** Identify need for web search and content extraction.
-2.  **Execute:** Perform `web_search`, then `get_website_text_content` on results.
+1.  **Plan:** Identify need for web search (1-3 broad queries) and content extraction.
+2.  **Execute:** Perform `web_search`, analyze results, then use `advanced_web_scrape` (mode='smart') on relevant URLs.
 3.  **Reflect:** (Internal) Assess quality of search results and extracted text.
 4.  **Respond:** Synthesize extracted content into a summary or answer.
 
@@ -241,9 +247,10 @@ This project is a fork of the original [gem-assist](https://github.com/Fus3n/gem
 
 ## ⚠️ Known Issues
 
--   Web interaction tools may hit rate limits.
+-   Web interaction tools may hit rate limits (mitigated by search strategy in prompts).
 -   File download tool might not show progress correctly for dynamic endpoints.
--   Some features require additional dependencies.
+-   Some features require additional dependencies (check `pyproject.toml` extras).
+-   Selenium-based dynamic scraping (`advanced_web_scrape` with `render_js=True`) requires a compatible WebDriver (e.g., chromedriver) installed and accessible in the system PATH.
 
 ## ✨ Future Enhancements
 
