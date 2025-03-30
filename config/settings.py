@@ -57,6 +57,10 @@ class Settings(BaseSettings):
         default=False,
         description="Print OS-level error messages"
     )
+    THEME: str = Field(
+        default="default",
+        description="UI theme name (e.g., default, dark, terminal)"
+    )
 
     # Search settings
     DUCKDUCKGO_TIMEOUT: int = Field(
