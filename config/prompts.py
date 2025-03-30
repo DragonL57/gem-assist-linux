@@ -14,6 +14,7 @@ class Prompts:
     execution_prompt: str
     base_system_prompt: str
     self_reflection_prompt: str # Added new field
+    final_response_refinement_prompt: str # <<< ADDED
 
     def to_dict(self) -> Dict[str, str]:
         """Convert prompts to dictionary format.
@@ -25,7 +26,8 @@ class Prompts:
             "reasoning_prompt": self.reasoning_prompt,
             "execution_prompt": self.execution_prompt,
             "base_system_prompt": self.base_system_prompt,
-            "self_reflection_prompt": self.self_reflection_prompt # Added to dict
+            "self_reflection_prompt": self.self_reflection_prompt, # Added to dict
+            "final_response_refinement_prompt": self.final_response_refinement_prompt # <<< ADDED
         }
 
     @classmethod
@@ -43,7 +45,8 @@ class Prompts:
             reasoning_prompt=data.get("reasoning_prompt", ""), # Provide default empty string
             execution_prompt=data.get("execution_prompt", ""), # Provide default empty string
             base_system_prompt=data.get("base_system_prompt", ""), # Provide default empty string
-            self_reflection_prompt=data.get("self_reflection_prompt", "") # Added with default
+            self_reflection_prompt=data.get("self_reflection_prompt", ""), # Added with default
+            final_response_refinement_prompt=data.get("final_response_refinement_prompt", "") # <<< ADDED with default
         )
 
 class PromptManager:
@@ -112,7 +115,8 @@ class PromptManager:
             reasoning_prompt="Default Reasoning Prompt: Plan steps and tools.",
             execution_prompt="Default Execution Prompt: Execute the plan.",
             base_system_prompt="Default Base Prompt: You are a helpful assistant.",
-            self_reflection_prompt="Default Reflection Prompt: Reflect on the process." # Added default
+            self_reflection_prompt="Default Reflection Prompt: Reflect on the process.", # Added default
+            final_response_refinement_prompt="Default Refinement Prompt: Refine the response." # <<< ADDED default
         )
 
     # Properties now ensure prompts are loaded before access
@@ -148,6 +152,13 @@ class PromptManager:
         if self._prompts is None:
             raise RuntimeError("Prompts not loaded. Call ensure_prompts_loaded first.")
         return self._prompts.self_reflection_prompt
+
+    @property
+    def final_response_refinement_prompt(self) -> str: # <<< ADDED Property
+        """Get the final response refinement prompt."""
+        if self._prompts is None:
+            raise RuntimeError("Prompts not loaded. Call ensure_prompts_loaded first.")
+        return self._prompts.final_response_refinement_prompt
 
 # Global instance (Kept for potential direct use, though config access is preferred)
 _prompt_manager: Optional[PromptManager] = None

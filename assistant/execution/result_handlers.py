@@ -103,11 +103,9 @@ class LongTextResultHandler(ToolResultHandler):
         """Format long text results with word count and preview."""
         if isinstance(result, str):
             word_count = len(result.split())
+            # Return only the preview, title has time/status
             preview = DefaultResultHandler()._create_preview(result, context.max_lines, context.max_length)
-            return (
-                f"Text response ({word_count} words) "
-                f"[dim]in {context.execution_time:.2f}s:[/]\n{preview}"
-            )
+            return f"Text response ({word_count} words):\n{preview}" # Keep word count for context
         return DefaultResultHandler().format_result(result, context)
 
 class JsonResultHandler(ToolResultHandler):
@@ -119,11 +117,9 @@ class JsonResultHandler(ToolResultHandler):
             structure = self._describe_structure(result)
             # Get the fully formatted JSON string
             formatted_json = self._format_json(result)
-            # Combine structure description, time, and the formatted JSON
-            return (
-                f"{structure} [dim]in {context.execution_time:.2f}s:[/]\n"
-                f"{formatted_json}"
-            )
+            # Return only the formatted JSON, title has time/status
+            # Keep structure description for context
+            return f"{structure}:\n{formatted_json}"
         # Fallback to default handler if not dict or list
         return DefaultResultHandler().format_result(result, context)
         
@@ -139,11 +135,11 @@ class JsonResultHandler(ToolResultHandler):
         
     
     def _format_json(self, result: Any) -> str:
-        """Format result as JSON with proper indentation."""
+        """Format result using rich.pretty for better display."""
         try:
-            import json
-            # Return the fully formatted JSON string
-            return json.dumps(result, indent=2)
+            from rich.pretty import pretty_repr
+            # Use pretty_repr for consistent formatting
+            return pretty_repr(result)
         except Exception:
             # Fallback if formatting fails
             try:
@@ -151,4 +147,3 @@ class JsonResultHandler(ToolResultHandler):
             except Exception:
                 # If converting to string also fails, return a placeholder
                 return "[Result formatting failed]"
-            return "[Result formatting failed]"
