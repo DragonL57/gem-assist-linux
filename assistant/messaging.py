@@ -233,7 +233,7 @@ class MessageProcessor:
         return final_assistant_message
 
     # --- Modified process_response to support agentic flow ---
-    async def process_response(self, response: Any, print_response: bool = True) -> Optional[Any]: # Return type changed to Any
+    async def process_response(self, response: Any, print_response: bool = True, retry_attempt: int = 0) -> Optional[Any]: # Added retry_attempt
         """
         Process the model's response, handling the tool call loop recursively.
         Adds assistant and tool messages to the main history (self.assistant.messages).
@@ -252,12 +252,70 @@ class MessageProcessor:
 
             response_message = response.choices[0].message
             tool_calls = getattr(response_message, 'tool_calls', None)
+            finish_reason = getattr(response.choices[0], 'finish_reason', 'unknown') # Get finish reason
+
+            # --- BEGIN NEW RETRY LOGIC for MALFORMED_FUNCTION_CALL ---
+            MAX_RETRY_ATTEMPTS = 1 # Limit retries
+            if finish_reason == "MALFORMED_FUNCTION_CALL" and retry_attempt < MAX_RETRY_ATTEMPTS:
+                self.assistant.logger.log_warning(
+                    f"Malformed function call detected. Attempting retry {retry_attempt + 1}/{MAX_RETRY_ATTEMPTS}.",
+                    {"original_response": str(response)}
+                )
+                self.assistant.console.print("[yellow]Warning: Model generated a malformed tool call. Attempting self-correction...[/]")
+
+                # Construct retry prompt - copy history and add error context
+                # Copy history UP TO THE POINT BEFORE THE FAILED ASSISTANT MESSAGE
+                # Note: add_msg_assistant hasn't been called yet for the failed response_message
+                retry_messages = list(self.assistant.messages)
+                retry_messages.append({
+                    "role": "user",
+                    "content": (
+                        "My previous attempt to generate a function call based on our conversation failed because "
+                        "the call was malformed (reason: MALFORMED_FUNCTION_CALL). "
+                        "Please review the conversation history and the goal, then carefully generate the *correct* "
+                        "next function call required. Pay close attention to formatting the arguments, especially complex ones like file content."
+                    )
+                })
+
+                try:
+                    # Attempt the LLM call again with the error context
+                    retry_response = await self.assistant.get_completion_with_retry(
+                        messages=retry_messages,
+                        tools=self.assistant.tools
+                    )
+                    # Process the *retry* response, incrementing the attempt counter
+                    # If this recursive call succeeds, it will add the successful assistant message to history
+                    return await self.process_response(retry_response, print_response=print_response, retry_attempt=retry_attempt + 1)
+                except Exception as retry_e:
+                    self.assistant.logger.logger.exception(
+                        f"Error during self-correction retry attempt {retry_attempt + 1}: {retry_e}",
+                        extra={"context_messages": retry_messages}
+                    )
+                    # If retry fails, raise the error to be handled by the main loop
+                    raise MessageProcessingError(
+                        message=f"Self-correction retry attempt failed: {str(retry_e)}",
+                        phase="agentic_execution_retry",
+                        details={"error": str(retry_e), "trace": traceback.format_exc()}
+                    ) from retry_e
+
+            elif finish_reason == "MALFORMED_FUNCTION_CALL" and retry_attempt >= MAX_RETRY_ATTEMPTS:
+                self.assistant.logger.log_error(
+                    f"Malformed function call persisted after {retry_attempt} retries. Aborting.",
+                    {"final_response": str(response)}
+                )
+                raise MessageProcessingError(
+                     message=f"Failed to generate a valid tool call after {retry_attempt} retries due to malformed calls.",
+                     phase="agentic_execution_failure",
+                     details={"finish_reason": finish_reason}
+                )
+            # --- END NEW RETRY LOGIC ---
 
             # Add the current assistant message (which might contain tool calls) to history
             # Use the assistant's method which handles formatting and duplicates
+            # This now only happens if the initial call was okay OR if the retry succeeds (handled in recursive call)
             await self.assistant.add_msg_assistant(response_message)
 
-            # Process tool calls if present
+            # Process tool calls if present (and no MALFORMED_FUNCTION_CALL error occurred or retry was successful)
             if tool_calls:
                 # Display intermediate thinking/plan if content exists
                 self._handle_reasoning_display(response_message, print_response) # Uses DEBUG_MODE check internally
@@ -278,12 +336,17 @@ class MessageProcessor:
                 )
 
                 # Recursively process the next response
-                return await self.process_response(next_response, print_response=print_response)
+                # Pass the retry_attempt counter along in the recursion (stays the same for this chain)
+                return await self.process_response(next_response, print_response=print_response, retry_attempt=retry_attempt)
             else:
-                # No more tool calls, this is the final assistant message for this interaction chain
-                self.assistant.logger.log_debug("process_response loop complete, returning final message.")
-                # Display is handled by the calling function (process_agentic_flow)
-                return response_message # Return the final message object (could be dict or specific object type)
+                # No tool calls, check finish reason again for other potential issues
+                 if finish_reason != "STOP" and finish_reason != "unknown": # Check if finish reason is unexpected
+                      self.assistant.logger.log_warning(f"No tool call generated, but finish reason was '{finish_reason}', not 'STOP'.", {"response": str(response)})
+                      # Consider if specific handling needed for other finish_reasons like 'MAX_TOKENS', 'SAFETY' etc.
+                 # No more tool calls, this is the final assistant message for this interaction chain
+                 self.assistant.logger.log_debug("process_response loop complete, returning final message.")
+                 # Display is handled by the calling function (process_agentic_flow)
+                 return response_message # Return the final message object (could be dict or specific object type)
 
         except Exception as e:
              # Use logger.exception to include traceback and rename extra key

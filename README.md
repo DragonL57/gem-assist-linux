@@ -175,7 +175,7 @@ Gem-assist-linux includes tools across several categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
-| **File System** | `list_dir`, `read_file`, `write_files`, etc. | Interact with local files and directories |
+| **File System** | `list_dir`, `read_file`, `write_file`, etc. | Interact with local files and directories |
 | **Web** | `get_website_text_content`, `smart_content_extraction`, `get_youtube_transcript` | Extract and process web content |
 | **Search** | `web_search`, `reddit_search` | Find information online |
 | **Document Processing** | `read_excel_file`, `read_pdf_text`, `convert_document` | Work with various document formats |
