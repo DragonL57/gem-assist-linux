@@ -117,10 +117,14 @@ class JsonResultHandler(ToolResultHandler):
         """Format JSON/dictionary results with structure information."""
         if isinstance(result, (dict, list)):
             structure = self._describe_structure(result)
-            preview = self._format_json(result, context)
+            # Get the fully formatted JSON string
+            formatted_json = self._format_json(result)
+            # Combine structure description, time, and the formatted JSON
             return (
-                f"{structure} [dim]in {context.execution_time:.2f}s:[/]\n{preview}"
+                f"{structure} [dim]in {context.execution_time:.2f}s:[/]\n"
+                f"{formatted_json}"
             )
+        # Fallback to default handler if not dict or list
         return DefaultResultHandler().format_result(result, context)
         
     def _describe_structure(self, result: Any) -> str:
@@ -133,11 +137,18 @@ class JsonResultHandler(ToolResultHandler):
             return f"List with {item_count} items"
         return "Unknown structure"
         
-    def _format_json(self, result: Any, context: ResultContext) -> str:
+    
+    def _format_json(self, result: Any) -> str:
         """Format result as JSON with proper indentation."""
         try:
             import json
-            formatted = json.dumps(result, indent=2)
-            return DefaultResultHandler()._create_preview(formatted, context.max_lines, context.max_length)
+            # Return the fully formatted JSON string
+            return json.dumps(result, indent=2)
         except Exception:
-            return "[JSON formatting failed]"
+            # Fallback if formatting fails
+            try:
+                return str(result)
+            except Exception:
+                # If converting to string also fails, return a placeholder
+                return "[Result formatting failed]"
+            return "[Result formatting failed]"

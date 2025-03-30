@@ -8,70 +8,63 @@
 
 > **Important Note**: This is a significantly improved Linux fork of [Fus3n's gem-assist](https://github.com/Fus3n/gem-assist) with numerous enhancements, bug fixes, and new features to make it fully functional on Linux systems.
 
-Gem-assist-linux is a powerful terminal-based AI assistant powered by Google's Gemini models. It employs a unique two-phase reasoning architecture along with an expanded toolset to provide intelligent assistance directly in your terminal.
+Gem-assist-linux is a powerful terminal-based AI assistant powered by Google's Gemini models. It employs an **agentic workflow** involving planning, dynamic tool execution, and self-reflection, along with an expanded toolset, to provide intelligent assistance directly in your terminal.
 
 ## 🔄 Fork Improvements
 
 This Linux fork provides substantial improvements over the original project:
 
-- **Two-Phase Reasoning Architecture**: Added a completely new reasoning-before-execution approach
-- **Enhanced Terminal UI**: Improved console interaction and display formatting
-- **Extended Tool Set**: Added numerous new tools including arXiv research paper integration
-- **YouTube Transcript Analysis**: Added capability to extract and analyze video content
-- **Improved Web Content Extraction**: Better handling of complex websites and content extraction
-- **Research Tools**: New tools for scholarly research and academic paper analysis
-- **Linux Compatibility**: Fixed various issues that prevented proper functionality on Linux systems
-- **Comprehensive System Information**: Enhanced system information collection and reporting
+- **Agentic Workflow**: Implemented a more dynamic workflow including planning, execution, and self-reflection.
+- **Enhanced Terminal UI**: Improved console interaction and display formatting.
+- **Extended Tool Set**: Added numerous new tools including arXiv research paper integration.
+- **YouTube Transcript Analysis**: Added capability to extract and analyze video content.
+- **Improved Web Content Extraction**: Better handling of complex websites and content extraction.
+- **Research Tools**: New tools for scholarly research and academic paper analysis.
+- **Linux Compatibility**: Fixed various issues that prevented proper functionality on Linux systems.
+- **Comprehensive System Information**: Enhanced system information collection and reporting.
 
 ## 🌟 Key Features
 
-- **Two-Phase Reasoning**: Planning before execution ensures thoughtful and strategic responses
-- **Rich Tool Ecosystem**: 30+ specialized tools for file operations, web searches, code execution, and more
-- **Research Capabilities**: Direct access to academic papers through arXiv integration
-- **YouTube Analysis**: Extract and analyze video transcripts
-- **Efficient Web Strategy**: Smart search tools to avoid rate limits while maximizing information quality
-- **Local File Access**: Read and manipulate various file types including PDFs, Word documents, and Excel files
-- **Customizable**: Easy configuration through a central config.py file
+- **Agentic Workflow**: Plans approach, executes tools dynamically, reflects on the process, and then responds.
+- **Rich Tool Ecosystem**: 40+ specialized tools for file operations, web searches, code execution, and more.
+- **Research Capabilities**: Direct access to academic papers through arXiv integration.
+- **YouTube Analysis**: Extract and analyze video transcripts.
+- **Efficient Web Strategy**: Smart search tools to avoid rate limits while maximizing information quality.
+- **Local File Access**: Read and manipulate various file types including PDFs, Word documents, and Excel files.
+- **Customizable**: Easy configuration through YAML files and settings.
 
 ## 🏗️ Architecture
 
-Gem-assist-linux uses a deliberate two-phase approach to solve problems:
+Gem-assist-linux uses an agentic approach to solve problems:
 
-1. **Reasoning Phase**: The assistant first analyzes the query and plans an approach
-2. **Execution Phase**: The assistant follows the reasoning plan to execute tools and provide a final response
+1.  **Planning Phase**: The assistant first analyzes the query and determines the necessary steps and tools. (This plan is usually internal or shown concisely in debug mode).
+2.  **Execution Phase**: The assistant executes the planned tool calls sequentially, potentially adapting based on results (adaptation logic is under development).
+3.  **Reflection Phase (Internal)**: After execution, the assistant internally assesses the process, the quality of gathered information, and its confidence level.
+4.  **Response Phase**: The assistant synthesizes the gathered information, potentially informed by the reflection, to generate the final response for the user.
 
 > **Note**: The architecture diagrams below will render properly on GitHub and GitLab. In other environments, you'll see the diagram code instead.
 
 ```mermaid
 flowchart TD
-    User[User Input] --> |Query| ReasoningPhase
-    
-    subgraph "Phase 1: Reasoning"
-        ReasoningPhase[Reasoning Engine] --> |Plans approach| ReasoningPlan[Reasoning Plan]
-    end
-    
-    ReasoningPlan --> |Guides execution| ExecutionPhase
-    
-    subgraph "Phase 2: Execution"
-        ExecutionPhase[Execution Engine] --> |Uses| ToolSelection[Tool Selection]
-        ToolSelection --> |Calls| ToolExecution[Tool Execution]
-        ToolExecution --> |Returns| ToolResults[Results Collection]
-        ToolResults --> |Synthesizes| FinalResponse[Final Response]
-    end
-    
-    FinalResponse --> User
+    User[User Input] --> |Query| PlanningPhase{Planning Engine}
+    PlanningPhase --> |Internal Plan| ExecutionPhase{Execution Engine}
+    ExecutionPhase --> |Calls Tools / Adapts| ToolExecution[Tool Execution Loop]
+    ToolExecution --> |Results| ReflectionPhase{Reflection Engine}
+    ReflectionPhase --> |Internal Assessment| ResponseGeneration{Response Engine}
+    ResponseGeneration --> |Final Answer| User
 ```
 
 ### Core Components
 
 The assistant consists of several interconnected components that work together:
 
-- **Assistant**: Central coordinator that manages the conversation
-- **MessageProcessor**: Handles conversation flow and message processing
-- **ReasoningEngine**: Plans approach without executing tools
-- **ToolExecutor**: Executes tools according to the reasoning plan
-- **SessionManager**: Manages conversation history and persistence
-- **Tool Collection**: Library of 30+ specialized tools across categories
+- **Assistant**: Central coordinator that manages the conversation.
+- **MessageProcessor**: Handles the agentic workflow (Planning -> Execution -> Reflection -> Response).
+- **ReasoningEngine**: Performs the initial planning step.
+- **ToolExecutor**: Executes individual tool calls.
+- **Reflection Engine (within MessageProcessor)**: Assesses the execution process and results.
+- **SessionManager**: Manages conversation history and persistence.
+- **Tool Collection**: Library of 40+ specialized tools across categories.
 
 ```mermaid
 graph TB
@@ -81,8 +74,10 @@ graph TB
     Assistant --> ToolExec[ToolExecutor]
     Assistant --> Session[SessionManager]
     Assistant --> Converter[TypeConverter]
-    
-    Messaging --Uses--> Reasoning
+
+    Messaging --Orchestrates--> Reasoning
+    Messaging --Orchestrates--> ToolExec
+    Messaging --Performs--> Reflection((Internal Reflection))
     ToolExec --Executes--> Tools[(Tool Collection)]
     Tools --Categories--> Files[File Tools]
     Tools --Categories--> Web[Web Tools]
@@ -101,33 +96,33 @@ graph TB
 
 ### Installation
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/DragonL57/gem-assist-linux.git
-   cd gem-assist-linux
-   ```
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/DragonL57/gem-assist-linux.git
+    cd gem-assist-linux
+    ```
 
-2. **Install core dependencies**:
-   ```bash
-   uv pip install -e .
-   ```
+2.  **Install core dependencies**:
+    ```bash
+    uv pip install -e .
+    ```
 
-3. **Install optional dependencies** (based on your needs):
-   ```bash
-   # For all optional dependencies
-   uv pip install -e ".[all]"
-   
-   # Or install specific feature groups
-   uv pip install -e ".[data-analysis,web-scraping,dynamic-web,documents]"
-   ```
+3.  **Install optional dependencies** (based on your needs):
+    ```bash
+    # For all optional dependencies
+    uv pip install -e ".[all]"
 
-4. **Configure API keys**:
-   Create a `.env` file in the project root with your API keys:
-   ```
-   GEMINI_API_KEY=your_api_key_here
-   REDDIT_ID=your_reddit_client_id  # Optional
-   REDDIT_SECRET=your_reddit_client_secret  # Optional
-   ```
+    # Or install specific feature groups
+    uv pip install -e ".[data-analysis,web-scraping,dynamic-web,documents]"
+    ```
+
+4.  **Configure API keys**:
+    Create a `.env` file in the project root with your API keys:
+    ```
+    GEMINI_API_KEY=your_api_key_here
+    REDDIT_ID=your_reddit_client_id  # Optional
+    REDDIT_SECRET=your_reddit_client_secret  # Optional
+    ```
 
 ## 📋 Usage
 
@@ -137,27 +132,29 @@ Run the main script to start the chat interface:
 uv run main.py
 ```
 
-You'll see a chat interface where you can interact with the assistant. The conversation follows this workflow:
+You'll see a chat interface where you can interact with the assistant. The conversation follows this general workflow:
 
-1. You ask a question
-2. The assistant develops an approach plan (Reasoning Phase)
-3. The assistant displays its reasoning
-4. The assistant executes relevant tools (Execution Phase)
-5. The assistant synthesizes all information and provides a comprehensive response
+1.  You ask a question.
+2.  The assistant internally plans the steps (Planning Phase).
+3.  The assistant executes necessary tools (Execution Phase).
+4.  The assistant internally reflects on the process (Reflection Phase).
+5.  The assistant synthesizes the information and provides a response.
 
 ```mermaid
 sequenceDiagram
     participant User
     participant Assistant
     participant Tools
-    
+
     User->>Assistant: Ask a question
-    Note over Assistant: Reasoning Phase
-    Assistant->>Assistant: Develop approach plan
-    Assistant-->>User: Display reasoning
+    Note over Assistant: Planning Phase (Internal)
+    Assistant->>Assistant: Develop internal plan
     Note over Assistant: Execution Phase
-    Assistant->>Tools: Execute relevant tools
+    Assistant->>Tools: Execute necessary tools
     Tools-->>Assistant: Return results
+    Note over Assistant: Reflection Phase (Internal)
+    Assistant->>Assistant: Assess process & results
+    Note over Assistant: Response Phase
     Assistant->>Assistant: Synthesize final answer
     Assistant-->>User: Provide comprehensive response
 ```
@@ -170,7 +167,7 @@ Type `/help` to see available commands. Some useful ones include:
 - `/save [name]` - Save the current session
 - `/load [name]` - Load a saved session
 - `/reset` - Reset the current session
-- `/reasoning` - Show the assistant's reasoning for the last response
+- `/reasoning` - Show the assistant's initial plan for the last response (if debug enabled)
 
 ## 🛠️ Tool Categories
 
@@ -178,7 +175,7 @@ Gem-assist-linux includes tools across several categories:
 
 | Category | Tools | Description |
 |----------|-------|-------------|
-| **File System** | `list_dir`, `read_file_content`, `write_files`, etc. | Interact with local files and directories |
+| **File System** | `list_dir`, `read_file`, `write_files`, etc. | Interact with local files and directories |
 | **Web** | `get_website_text_content`, `smart_content_extraction`, `get_youtube_transcript` | Extract and process web content |
 | **Search** | `web_search`, `reddit_search` | Find information online |
 | **Document Processing** | `read_excel_file`, `read_pdf_text`, `convert_document` | Work with various document formats |
@@ -188,26 +185,15 @@ Gem-assist-linux includes tools across several categories:
 
 ## ⚙️ Configuration
 
-The main configuration file is `config.py`. Here are some key settings you can customize:
+Configuration is primarily managed through YAML files in the `config/` directory (`settings.yml`, `prompts.yml`, etc.) and environment variables (`.env` file). Key settings include:
 
-```python
-# Model selection
-MODEL = "gemini/gemini-2.0-flash"  # or other supported models
+-   **Model Selection**: Defined in `config/settings.yml` (e.g., `MODEL: "gemini/gemini-2.0-flash"`)
+-   **Assistant Name**: Defined in `config/settings.yml`
+-   **Model Parameters**: (Temperature, Top P, Max Tokens) in `config/settings.yml`
+-   **Debug Mode**: Set `DEBUG_MODE: true` in `config/settings.yml` to see planning and reflection details.
+-   **API Keys**: Set in the `.env` file.
 
-# Assistant name
-NAME = "Gemini"  # Customize your assistant's name
-
-# Model parameters
-TEMPERATURE = 0.25
-TOP_P = None
-MAX_TOKENS = 8192  # Maximum supported by your model
-SEED = None
-
-# Debug mode (shows model reasoning)
-DEBUG_MODE = False  # Set to True to see model reasoning
-```
-
-**Note**: Restart the application after making changes to `config.py`.
+**Note**: Restart the application after making changes to configuration files or `.env`.
 
 ## 🧪 Testing
 
@@ -219,34 +205,35 @@ uv run pytest tests/
 
 ## 🔍 Workflows
 
-Gem-assist-linux is designed for various workflows:
+Gem-assist-linux supports various workflows leveraging its agentic nature and tools:
 
 ### Research Workflow
-1. **Web search**: Find high-quality sources
-2. **Extract content**: Get detailed information from sources
-3. **Execute Python code**: Analyze and synthesize findings
-4. **Final answer**: Provide comprehensive response
+1.  **Plan:** Identify need for web search and content extraction.
+2.  **Execute:** Perform `web_search`, then `get_website_text_content` on results.
+3.  **Reflect:** (Internal) Assess quality of search results and extracted text.
+4.  **Respond:** Synthesize extracted content into a summary or answer.
 
 ### Paper Analysis Workflow
-1. **Get arXiv paper**: Extract paper content
-2. **Summarize research paper**: Identify key sections and findings
-3. **Execute Python code**: Process and analyze
-4. **Final answer**: Provide insights on the research
+1.  **Plan:** Identify need for arXiv tool.
+2.  **Execute:** Use `get_arxiv_paper`, potentially followed by `summarize_research_paper`.
+3.  **Reflect:** (Internal) Evaluate the paper's relevance and summary quality.
+4.  **Respond:** Provide insights based on the paper.
 
 ### YouTube Analysis Workflow
-1. **Get YouTube transcript**: Extract video content
-2. **Execute Python code**: Analyze transcript
-3. **Final answer**: Generate summary with key timestamps
+1.  **Plan:** Identify need for YouTube tool.
+2.  **Execute:** Use `get_youtube_transcript`.
+3.  **Reflect:** (Internal) Check transcript quality.
+4.  **Respond:** Summarize the video content based on the transcript.
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/amazing-feature`
-3. Commit your changes: `git commit -m 'Add some amazing feature'`
-4. Push to the branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
+1.  Fork the repository
+2.  Create your feature branch: `git checkout -b feature/amazing-feature`
+3.  Commit your changes: `git commit -m 'Add some amazing feature'`
+4.  Push to the branch: `git push origin feature/amazing-feature`
+5.  Open a Pull Request
 
 ## 📝 License
 
@@ -254,9 +241,10 @@ This project is a fork of the original [gem-assist](https://github.com/Fus3n/gem
 
 ## ⚠️ Known Issues
 
-- Web interaction tools may hit rate limits
-- File download tool might not show progress correctly for dynamic endpoints
-- Some features require additional dependencies
+-   Web interaction tools may hit rate limits.
+-   File download tool might not show progress correctly for dynamic endpoints.
+-   Some features require additional dependencies.
+-   Execution adaptation logic (re-planning on tool failure) is still under development.
 
 ---
 
