@@ -187,7 +187,7 @@ Gem-assist-linux includes tools across 8 consolidated categories:
 | **`search`** | `web_search`, `reddit_search` | Perform searches on the web or specific platforms like Reddit. |
 | **`code_execution`** | `execute_python_code`, `analyze_pandas_dataframe` | Execute Python code snippets and perform data analysis with Pandas. |
 | **`system`** | `run_shell_command`, `get_system_info`, `run_parallel_commands` | Interact with the operating system, run shell commands, and get system details. |
-| **`research`** | `get_arxiv_paper`, `summarize_research_paper` | Access and analyze academic papers from arXiv. |
+| **`research`** | `get_arxiv_paper` | Access and analyze academic papers from arXiv. |
 | **`document_formats`** | `read_excel_file`, `read_excel_structure`, `convert_excel_to_format` | Work specifically with complex document formats like Excel spreadsheets. |
 | **`tool_management`** | `find_tools` | Meta-tools for discovering available tools. |
 
@@ -223,7 +223,7 @@ Gem-assist-linux supports various workflows leveraging its agentic nature and to
 
 ### Paper Analysis Workflow
 1.  **Plan:** Identify need for arXiv tool.
-2.  **Execute:** Use `get_arxiv_paper`, potentially followed by `summarize_research_paper`.
+2.  **Execute:** Use `get_arxiv_paper`
 3.  **Reflect:** (Internal) Evaluate the paper's relevance and summary quality.
 4.  **Respond:** Provide insights based on the paper.
 
