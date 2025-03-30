@@ -340,13 +340,14 @@ class MessageProcessor:
                 return await self.process_response(next_response, print_response=print_response, retry_attempt=retry_attempt)
             else:
                 # No tool calls, check finish reason again for other potential issues
-                 if finish_reason != "STOP" and finish_reason != "unknown": # Check if finish reason is unexpected
-                      self.assistant.logger.log_warning(f"No tool call generated, but finish reason was '{finish_reason}', not 'STOP'.", {"response": str(response)})
-                      # Consider if specific handling needed for other finish_reasons like 'MAX_TOKENS', 'SAFETY' etc.
-                 # No more tool calls, this is the final assistant message for this interaction chain
-                 self.assistant.logger.log_debug("process_response loop complete, returning final message.")
-                 # Display is handled by the calling function (process_agentic_flow)
-                 return response_message # Return the final message object (could be dict or specific object type)
+                # Accept 'stop' (lowercase) as a valid finish reason when no tool calls are made
+                if finish_reason != "STOP" and finish_reason != "stop" and finish_reason != "unknown": # Check if finish reason is unexpected
+                     self.assistant.logger.log_warning(f"No tool call generated, but finish reason was '{finish_reason}', not 'STOP' or 'stop'.", {"response": str(response)})
+                     # Consider if specific handling needed for other finish_reasons like 'MAX_TOKENS', 'SAFETY' etc.
+                # No more tool calls, this is the final assistant message for this interaction chain
+                self.assistant.logger.log_debug("process_response loop complete, returning final message.")
+                # Display is handled by the calling function (process_agentic_flow)
+                return response_message # Return the final message object (could be dict or specific object type)
 
         except Exception as e:
              # Use logger.exception to include traceback and rename extra key
