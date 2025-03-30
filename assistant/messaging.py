@@ -347,10 +347,21 @@ class MessageProcessor:
 
                         self.assistant.console.print(f"[yellow]Warning: Tool '{e.tool_name}' failed. Attempting re-plan ({replan_attempt + 1}/{MAX_REPLAN_ATTEMPTS})...[/]")
                         
-                        # Construct re-plan prompt (using only the current history)
+                        # Construct re-plan prompt (using the current history + explicit instruction)
                         # The error output was already added via add_toolcall_output
                         replan_messages = list(self.assistant.messages)
-                        # No need to add an extra user message here, the history contains the tool error output
+
+                        # Add explicit user message for re-planning and critique
+                        replan_instruction = (
+                            f"The previous attempt to use the tool '{e.tool_name}' failed with the following error:\n"
+                            f"```\n{str(e)}\n```\n"
+                            f"Tool Call ID: {e.details.get('tool_call_id', 'unknown_id')}\n\n"
+                            "Please perform the following steps:\n"
+                            "1. **Analyze Failure:** Briefly explain why the tool call likely failed based on the error and the conversation history.\n"
+                            "2. **Critique Plan:** Briefly critique the previous step or plan that led to this failure.\n"
+                            "3. **Revise Plan:** Propose a revised next step or a new plan to achieve the original goal, taking the failure into account. Generate the necessary tool call(s) for the revised step, or provide a textual response if no further tools are needed."
+                        )
+                        replan_messages.append({"role": "user", "content": replan_instruction})
 
                         # Get re-plan response from the model
                         try:
