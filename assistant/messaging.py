@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional, Union # Added Union
 import traceback
 import asyncio
 import jinja2 # Added for prompt templating
-from .exceptions.base import MessageProcessingError, AsyncOperationError, APICallError
+from .exceptions.base import MessageProcessingError, AsyncOperationError, APICallError, ToolExecutionError # Added ToolExecutionError
 
 from config import get_config
 from config.services.context import format_prompt_with_context # Import formatter
@@ -233,9 +233,10 @@ class MessageProcessor:
         return final_assistant_message
 
     # --- Modified process_response to support agentic flow ---
-    async def process_response(self, response: Any, print_response: bool = True, retry_attempt: int = 0) -> Optional[Any]: # Added retry_attempt
+    async def process_response(self, response: Any, print_response: bool = True, retry_attempt: int = 0, replan_attempt: int = 0) -> Optional[Any]: # Added replan_attempt
         """
         Process the model's response, handling the tool call loop recursively.
+        Includes logic for retrying malformed calls and re-planning on tool execution errors.
         Adds assistant and tool messages to the main history (self.assistant.messages).
         Returns the final assistant message object (can be str or dict) once the loop completes.
         """
@@ -321,23 +322,77 @@ class MessageProcessor:
                 self._handle_reasoning_display(response_message, print_response) # Uses DEBUG_MODE check internally
                 self.assistant.console.print(f"[bold cyan]Running {len(tool_calls)} tool operation(s):[/]")
 
-                # Process each tool call
+                # Process each tool call with error handling for re-planning
+                MAX_REPLAN_ATTEMPTS = 1 # Limit re-planning attempts per step
+                replan_triggered = False
                 for tool_call in tool_calls:
-                    # Execute tool and implicitly add result to self.assistant.messages via tool_executor
-                    await self.assistant.tool_executor.execute_tool_call(tool_call)
+                    try:
+                        # Execute tool (now raises ToolExecutionError on failure)
+                        await self.assistant.tool_executor.execute_tool_call(tool_call)
+                    except ToolExecutionError as e:
+                        self.assistant.logger.logger.error(f"Tool execution failed: {e}", exc_info=True, extra={"tool_call_id": e.details.get('tool_call_id'), "tool_name": e.tool_name})
+                        
+                        # Add error result to history so LLM knows it failed
+                        await self.assistant.add_toolcall_output(e.details.get('tool_call_id', 'unknown_id'), e.tool_name, f"Error: {str(e)}")
 
-                # Add a visual separator after all tool calls in this batch
-                self.assistant.console.print("[cyan]───────────────────────────────────────[/]")
+                        if replan_attempt >= MAX_REPLAN_ATTEMPTS:
+                             self.assistant.logger.log_error(f"Tool execution failed after {replan_attempt} re-plan attempts. Aborting.", {"error": str(e)})
+                             self.assistant.console.print(f"[bold red]Error: Tool '{e.tool_name}' failed after re-plan attempt. Cannot proceed.[/]")
+                             # Raise a more specific error indicating re-plan failure
+                             raise MessageProcessingError(
+                                 message=f"Tool '{e.tool_name}' failed after {replan_attempt} re-plan attempts.",
+                                 phase="agentic_execution_replan_failure",
+                                 details={"error": str(e), "tool_name": e.tool_name, "tool_call_id": e.details.get('tool_call_id')}
+                             ) from e
 
-                # Get the next response from the model using the updated history
-                next_response = await self.assistant.get_completion_with_retry(
-                    messages=self.assistant.messages, # Use the main history
-                    tools=self.assistant.tools
-                )
+                        self.assistant.console.print(f"[yellow]Warning: Tool '{e.tool_name}' failed. Attempting re-plan ({replan_attempt + 1}/{MAX_REPLAN_ATTEMPTS})...[/]")
+                        
+                        # Construct re-plan prompt (using only the current history)
+                        # The error output was already added via add_toolcall_output
+                        replan_messages = list(self.assistant.messages)
+                        # No need to add an extra user message here, the history contains the tool error output
 
-                # Recursively process the next response
-                # Pass the retry_attempt counter along in the recursion (stays the same for this chain)
-                return await self.process_response(next_response, print_response=print_response, retry_attempt=retry_attempt)
+                        # Get re-plan response from the model
+                        try:
+                            next_response = await self.assistant.get_completion_with_retry(
+                                messages=replan_messages, # Use history including the error
+                                tools=self.assistant.tools
+                            )
+                            # Recursively process the *new* response, incrementing replan_attempt
+                            replan_triggered = True # Mark that re-plan was initiated
+                            return await self.process_response(
+                                next_response,
+                                print_response=print_response,
+                                retry_attempt=retry_attempt, # Keep malformed call retry counter separate
+                                replan_attempt=replan_attempt + 1
+                            )
+                        except Exception as replan_e:
+                             self.assistant.logger.logger.exception(f"Error during re-plan LLM call: {replan_e}", extra={"context_messages": replan_messages})
+                             raise MessageProcessingError(
+                                 message=f"Re-plan attempt failed during LLM call: {str(replan_e)}",
+                                 phase="agentic_execution_replan_llm_failure",
+                                 details={"error": str(replan_e), "trace": traceback.format_exc()}
+                             ) from replan_e
+                
+                # If the loop finished without errors or re-planning, proceed normally
+                if not replan_triggered:
+                    # Add a visual separator after all successful tool calls in this batch
+                    self.assistant.console.print("[cyan]───────────────────────────────────────[/]")
+
+                    # Get the next response from the model using the updated history
+                    next_response = await self.assistant.get_completion_with_retry(
+                        messages=self.assistant.messages, # Use the main history
+                        tools=self.assistant.tools
+                    )
+
+                    # Recursively process the next response
+                    # Reset replan_attempt for the next level of recursion
+                    return await self.process_response(
+                        next_response,
+                        print_response=print_response,
+                        retry_attempt=retry_attempt,
+                        replan_attempt=0 # Reset replan counter for next step
+                    )
             else:
                 # No tool calls, check finish reason again for other potential issues
                 # Accept 'stop' (lowercase) as a valid finish reason when no tool calls are made

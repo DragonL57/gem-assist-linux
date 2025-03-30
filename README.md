@@ -244,7 +244,20 @@ This project is a fork of the original [gem-assist](https://github.com/Fus3n/gem
 -   Web interaction tools may hit rate limits.
 -   File download tool might not show progress correctly for dynamic endpoints.
 -   Some features require additional dependencies.
--   Execution adaptation logic (re-planning on tool failure) is still under development.
+
+## ✨ Future Enhancements
+
+Potential areas for future development include:
+
+-   **Sophisticated Re-planning Strategies:** Enhance re-planning with more explicit LLM instructions, error-specific strategies, and a critique step.
+-   **Integrate Reflection into Response:** Utilize the Reflection Phase insights to refine the final assistant output.
+-   **Enhanced Error Handling:** Introduce more specific exception types for nuanced error handling and re-planning.
+-   **Advanced Context Management:** Implement techniques like summarization or selective context inclusion for long conversations.
+-   **Robust Tool Management:** Improve tool loading/discovery and potentially allow LLM selection of tool subsets.
+-   **Comprehensive Testing:** Expand test coverage for the agentic flow, error handling, and individual tools.
+-   **Configuration Improvements:** Explore dynamic configuration loading or a CLI for settings management.
+-   **Asynchronous Operations:** Ensure all blocking tool operations are correctly handled asynchronously.
+-   **User Feedback Integration:** Develop mechanisms to incorporate explicit user feedback.
 
 ---
 

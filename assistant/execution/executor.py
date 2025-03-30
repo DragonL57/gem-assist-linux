@@ -300,8 +300,8 @@ class ToolExecutor:
         # Display error
         self.display.display_tool_error(context.name, str(error))
 
-        # Add error to conversation history
-        await self._add_to_history(context.tool_call_id, context.name, str(error))
+        # Re-raise the error to be handled by the message processor
+        raise error
 
     async def _handle_missing_tool(self, context: ToolExecutionContext) -> None:
         """Handle missing tool error asynchronously.
@@ -319,8 +319,8 @@ class ToolExecutor:
         # Display error
         self.display.display_tool_error(context.name, str(error))
 
-        # Add to conversation history
-        await self._add_to_history(context.tool_call_id, context.name, str(error))
+        # Re-raise the error to be handled by the message processor
+        raise error
 
     async def _add_to_history(self, tool_call_id: str, name: str, content: Any) -> None:
         """Add tool call output to conversation history asynchronously."""
