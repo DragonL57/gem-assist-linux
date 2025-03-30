@@ -26,7 +26,7 @@ class NetworkPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["web", "content"],
+        categories=["web"],
         requires_network=True,
         rate_limited=True,
         example_usage="get_website_text_content('https://example.com')"
@@ -77,7 +77,7 @@ class NetworkPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["web", "api"],
+        categories=["web"],
         requires_network=True,
         rate_limited=True
     )
@@ -140,7 +140,7 @@ class NetworkPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["web", "multimedia"],
+        categories=["web"],
         requires_network=True,
         rate_limited=True
     )
@@ -272,7 +272,7 @@ class NetworkPlugin(Plugin):
     # Rest of the file remains the same
     @staticmethod
     @tool(
-        categories=["web", "api"],
+        categories=["web"],
         requires_network=True,
         rate_limited=True
     )
@@ -337,7 +337,7 @@ class NetworkPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["web", "browser"],
+        categories=["web"],
         requires_network=True
     )
     def open_url(url: str) -> Dict[str, Any]:
@@ -379,7 +379,7 @@ class NetworkPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["web", "download"],
+        categories=["web"],
         requires_network=True,
         requires_filesystem=True
     )
@@ -509,7 +509,7 @@ class NetworkPlugin(Plugin):
         
     @staticmethod
     @tool(
-        categories=["web", "download"],
+        categories=["web"],
         requires_network=True
     )
     def try_resolve_filename_from_url(url: str) -> Dict[str, Any]:

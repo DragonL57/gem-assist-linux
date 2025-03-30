@@ -16,7 +16,7 @@ class FileSystemPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["filesystem", "navigation"],
+        categories=["filesystem"],
         requires_filesystem=True
     )
     def list_dir(path: str = None) -> List[Dict[str, Any]]:
@@ -101,7 +101,7 @@ class FileSystemPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["filesystem", "metadata"],
+        categories=["filesystem"],
         requires_filesystem=True
     )
     def get_drives() -> List[Dict[str, Any]]:
@@ -161,7 +161,7 @@ class FileSystemPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["filesystem", "metadata"],
+        categories=["filesystem"],
         requires_filesystem=True
     )
     def get_file_metadata(filepath: str) -> Dict[str, Any]:
@@ -226,7 +226,7 @@ class FileSystemPlugin(Plugin):
 
     @staticmethod
     @tool(
-        categories=["filesystem", "io"],
+        categories=["filesystem"],
         requires_filesystem=True,
         example_usage="read_file('path/to/file.txt', auto_detect_type=True)"
     )
@@ -318,7 +318,7 @@ class FileSystemPlugin(Plugin):
 
     @staticmethod
     @tool(
-        categories=["filesystem", "io"],
+        categories=["filesystem"],
         requires_filesystem=True,
         example_usage="write_file('path/to/new_file.txt', 'Hello, world!')"
     )

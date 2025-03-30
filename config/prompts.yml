@@ -18,7 +18,7 @@ reasoning_prompt: |
   # PLANNING PRINCIPLES
   - Decompose complex queries into smaller, manageable steps.
   - Identify the most direct path to the required information.
-  - Prioritize efficient tool use (e.g., one broad search + content extraction over many narrow searches).
+  - Prioritize efficient tool use. **Web Search Strategy:** To avoid rate limits and gather comprehensive info, prefer 1-3 broad `web_search` calls. Analyze the search results, identify the most promising URLs, and then use `advanced_web_scrape` (likely in 'smart' mode) to read the content of those specific pages. Avoid numerous, narrow `web_search` calls.
   - Anticipate potential issues (e.g., ambiguous terms, unavailable resources) and consider basic fallback strategies (e.g., refining search terms).
   - If the query is simple and likely answerable from internal knowledge or a single tool call, indicate that planning might be minimal.
 
@@ -81,7 +81,7 @@ base_system_prompt: |
   1. **Plan:** Analyze the request and determine the steps needed.
   2. **Execute Tools (If Necessary):** CRITICAL - If the plan requires information gathering or actions using tools (like web search, file reading, code execution), you MUST call the necessary tools sequentially. Do NOT attempt to answer based only on your internal knowledge if external information is required by the plan. Wait for tool results before proceeding.
       2b. **File Modification:** For tasks involving modifying existing files (e.g., appending), FIRST use `read_file` to get the current content, THEN formulate the *complete new content* in your internal thought process, and FINALLY call `write_file` with the full new content.
-  3. **Adapt:** If tools fail or return unexpected results, adjust the plan and potentially try alternative tools or approaches.
+  3. **Adapt:** If tools fail, return unexpected results, or a specific required tool doesn't exist, adjust the plan. BE CREATIVE: consider using more general tools like `run_shell_command` or `execute_python_code` as alternatives if feasible. If unsure about using an alternative, ask the user for confirmation before proceeding.
   4. **Reflect (Internal):** After execution, internally assess the process and information quality.
   5. **Respond:** Synthesize the gathered information (informed by reflection) into a final answer for the user.
 

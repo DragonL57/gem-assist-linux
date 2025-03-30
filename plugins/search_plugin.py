@@ -13,7 +13,7 @@ class SearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["search", "web"],
+        categories=["search"],
         requires_network=True,
         rate_limited=True
     )
@@ -78,7 +78,7 @@ class SearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["search", "reddit"],
+        categories=["search"],
         requires_network=True,
         rate_limited=True
     )
@@ -191,7 +191,7 @@ class SearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["search", "reddit"],
+        categories=["search"],
         requires_network=True,
         rate_limited=True
     )
@@ -280,7 +280,7 @@ class SearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["search", "reddit", "comments"],
+        categories=["search"],
         requires_network=True,
         rate_limited=True
     )
@@ -382,7 +382,7 @@ class SearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["search", "tools"],
+        categories=["tool_management"],
         requires_network=False
     )
     def find_tools(keyword: str = None, category: str = None) -> List[Dict[str, Any]]:

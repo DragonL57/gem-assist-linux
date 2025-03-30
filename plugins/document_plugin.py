@@ -10,93 +10,11 @@ from core_utils import tool_message_print, tool_report_print
 class DocumentPlugin(Plugin):
     """Plugin providing document processing capabilities."""
     
-    @staticmethod
-    @tool(
-        categories=["document", "conversion"],
-        requires_filesystem=True
-    )
-    def convert_document(file_path: str, output_format: str = "text") -> str:
-        """
-        Convert a document to another format or extract its content.
-        
-        Args:
-            file_path: Path to the document file
-            output_format: Desired output format (text, html, md)
-            
-        Returns:
-            Extracted or converted document content
-        """
-        tool_message_print(f"Converting {file_path} to {output_format}")
-        
-        try:
-            if not os.path.exists(file_path):
-                raise PluginError(
-                    f"File not found: {file_path}",
-                    plugin_name=DocumentPlugin.__name__
-                )
-                
-            # Get file extension
-            _, ext = os.path.splitext(file_path)
-            ext = ext.lower()
-            
-            # Handle different document types
-            
-            # Word documents
-            if ext in ['.docx', '.doc']:
-                try:
-                    import docx
-                except ImportError:
-                    raise PluginError(
-                        "python-docx package is required for .docx processing",
-                        plugin_name=DocumentPlugin.__name__
-                    )
-                
-                doc = docx.Document(file_path)
-                content = []
-                
-                for para in doc.paragraphs:
-                    content.append(para.text)
-                    
-                if output_format == "html":
-                    # Simple HTML conversion
-                    html_content = "<html><body>"
-                    for para in content:
-                        if para.strip():
-                            html_content += f"<p>{para}</p>"
-                    html_content += "</body></html>"
-                    return html_content
-                elif output_format == "md":
-                    # Simple Markdown conversion
-                    return "\n\n".join(content)
-                else:  # text
-                    return "\n\n".join(content)
-            
-            # PDF documents
-            elif ext == '.pdf':
-                return DocumentPlugin.read_pdf_text(file_path)
-            
-            # Excel files
-            elif ext in ['.xlsx', '.xls']:
-                if output_format == "text":
-                    return DocumentPlugin.read_excel_structure(file_path)
-                else:
-                    return DocumentPlugin.convert_excel_to_format(file_path, output_format)
-            
-            # Unsupported formats
-            else:
-                raise PluginError(
-                    f"Unsupported file format: {ext}",
-                    plugin_name=DocumentPlugin.__name__
-                )
-                
-        except PluginError:
-            raise
-        except Exception as e:
-            raise PluginError(f"Error converting document: {e}", plugin_name=DocumentPlugin.__name__) from e
+    # Removed convert_document tool. Use filesystem_plugin.read_file instead.
     
     @staticmethod
     @tool(
-        categories=["document", "excel"],
+        categories=["document_formats"],
         requires_filesystem=True
     )
     def read_excel_file(file_path: str, sheet_name: str = None, max_rows: int = 100) -> Dict[str, Any]:
@@ -169,7 +87,7 @@ class DocumentPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["document", "excel"],
+        categories=["document_formats"],
         requires_filesystem=True
     )
     def read_excel_structure(file_path: str) -> Dict[str, Any]:
@@ -251,83 +169,11 @@ class DocumentPlugin(Plugin):
         except Exception as e:
             raise PluginError(f"Error reading excel structure: {e}", plugin_name=DocumentPlugin.__name__) from e
     
-    @staticmethod
-    @tool(
-        categories=["document", "pdf"],
-        requires_filesystem=True
-    )
-    def read_pdf_text(file_path: str, start_page: int = 1, max_pages: int = None) -> str:
-        """
-        Extract text content from a PDF file. 
-        
-        Args:
-            file_path: Path to the PDF file
-            start_page: First page to extract (1-based index)
-            max_pages: Maximum number of pages to extract
-            
-        Returns:
-            Extracted text content
-        """
-        tool_message_print(f"Reading PDF: {file_path}")
-        
-        try:
-            try:
-                import pypdf
-            except ImportError:
-                raise PluginError(
-                    "pypdf package is required for PDF processing",
-                    plugin_name=DocumentPlugin.__name__
-                )
-            
-            if not os.path.exists(file_path):
-                raise PluginError(
-                    f"File not found: {file_path}",
-                    plugin_name=DocumentPlugin.__name__
-                )
-            
-            # Open the PDF file
-            with open(file_path, 'rb') as file:
-                # Create a PDF reader object
-                reader = pypdf.PdfReader(file)
-                
-                # Get information about the PDF
-                num_pages = len(reader.pages)
-                
-                # Adjust page range
-                start_idx = start_page - 1  # Convert to 0-based index
-                if start_idx < 0:
-                    start_idx = 0
-                
-                end_idx = num_pages
-                if max_pages is not None:
-                    end_idx = min(start_idx + max_pages, num_pages)
-                
-                # Extract text from each page
-                text_content = []
-                for i in range(start_idx, end_idx):
-                    page = reader.pages[i]
-                    text_content.append(page.extract_text())
-                
-                # Join text content with page separators
-                result = ""
-                for i, text in enumerate(text_content):
-                    result += f"\n--- Page {start_idx + i + 1} ---\n\n"
-                    result += text
-                    result += "\n\n"
-                
-                # Print summary
-                tool_report_print(f"Extracted text from {len(text_content)} of {num_pages} pages")
-                
-                return result
-                
-        except PluginError:
-            raise
-        except Exception as e:
-            raise PluginError(f"Error reading pdf text: {e}", plugin_name=DocumentPlugin.__name__) from e
+    # Removed read_pdf_text tool. Use filesystem_plugin.read_file instead.
     
     @staticmethod
     @tool(
-        categories=["document", "excel"],
+        categories=["document_formats"],
         requires_filesystem=True
     )
     def convert_excel_to_format(file_path: str, output_format: str = "csv", sheet_name: str = None) -> str:

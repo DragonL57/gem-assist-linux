@@ -13,7 +13,7 @@ class ArchivePlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["archive", "filesystem"],
+        categories=["filesystem"],
         requires_filesystem=True
     )
     def zip_archive_files(file_name: str, files: List[str]) -> Dict[str, Any]:
@@ -81,7 +81,7 @@ class ArchivePlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["archive", "filesystem"],
+        categories=["filesystem"],
         requires_filesystem=True
     )
     def zip_extract_files(zip_file: str, extract_path: Optional[str] = None) -> Dict[str, Any]:

@@ -30,7 +30,7 @@ def discover_plugins(plugin_dirs: List[str] = None) -> Dict[str, Any]:
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         plugin_dirs = [
             os.path.join(base_dir, "plugins"),
-            os.path.join(base_dir, "utils"),
+            # os.path.join(base_dir, "utils"), # Temporarily disable searching utils
         ]
     
     plugins = {}

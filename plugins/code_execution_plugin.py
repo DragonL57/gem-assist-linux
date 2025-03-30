@@ -16,7 +16,7 @@ class CodeExecutionPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["code", "execution"],
+        categories=["code_execution"],
         requires_filesystem=True,
         example_usage="execute_python_code('print(\"Hello, world!\")')"
     )
@@ -127,7 +127,7 @@ class CodeExecutionPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["code", "data-analysis"],
+        categories=["code_execution"],
         requires_filesystem=True
     )
     def analyze_pandas_dataframe(code: str, summary_only: bool = False) -> Dict[str, Any]:
