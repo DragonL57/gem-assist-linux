@@ -179,7 +179,13 @@ def _setup_prompt_session() -> PromptSession:
 
 async def _create_assistant() -> Assistant:
     """Format prompt and initialize the Assistant."""
-    # Format the base system prompt asynchronously
+    # Ensure prompts are loaded before trying to access them
+    # Call without arguments relies on default path finding in PromptManager
+    await config.prompt_manager.ensure_prompts_loaded()
+    # prompts_file_path = config.settings.PROMPTS_FILE # Removed incorrect line
+    # await config.prompt_manager.ensure_prompts_loaded(prompts_file_path) # Removed incorrect line
+
+    # Now it's safe to access prompts
     base_system_prompt_template = config.prompt_manager.base_system_prompt
     formatted_system_prompt = await format_prompt_with_context(
         base_system_prompt_template,

@@ -1,0 +1,74 @@
+2025-03-30 12:21:14,398 - assistant - INFO - Starting message processing
+2025-03-30 12:21:31,292 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:25:39,589 - assistant - INFO - Starting message processing
+2025-03-30 12:26:03,719 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:26:37,583 - assistant - INFO - Starting message processing
+2025-03-30 12:26:50,033 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:27:14,861 - assistant - INFO - Starting message processing
+2025-03-30 12:27:24,820 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:27:41,669 - assistant - INFO - Starting message processing
+2025-03-30 12:27:54,067 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:28:23,123 - assistant - INFO - Starting message processing
+2025-03-30 12:28:31,686 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:28:59,075 - assistant - INFO - Starting message processing
+2025-03-30 12:29:07,153 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:29:53,203 - assistant - INFO - Starting message processing
+2025-03-30 12:30:05,231 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:30:23,978 - assistant - INFO - Starting message processing
+2025-03-30 12:30:36,717 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:31:10,966 - assistant - INFO - Starting message processing
+2025-03-30 12:31:20,004 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:32:23,852 - assistant - INFO - Starting message processing
+2025-03-30 12:32:31,808 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:32:40,991 - assistant - INFO - Starting message processing
+2025-03-30 12:32:49,899 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:33:46,783 - assistant - INFO - Starting message processing
+2025-03-30 12:33:56,837 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:34:08,612 - assistant - INFO - Starting message processing
+2025-03-30 12:34:27,352 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:34:37,268 - assistant - INFO - Starting message processing
+2025-03-30 12:34:59,384 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:35:14,489 - assistant - INFO - Starting message processing
+2025-03-30 12:35:33,802 - assistant - INFO - Message processing completed successfully
+2025-03-30 12:52:44,824 - assistant - INFO - Starting agentic message processing
+2025-03-30 12:52:44,825 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:23:01,559 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:23:01,559 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:23:12,408 - assistant - INFO - Self-reflection step placeholder
+2025-03-30 14:23:12,411 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:23:19,316 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:23:19,316 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:23:34,476 - assistant - INFO - Self-reflection step placeholder
+2025-03-30 14:23:34,488 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:28:21,462 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:28:21,462 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:28:28,462 - assistant - INFO - Self-reflection step placeholder
+2025-03-30 14:28:28,466 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:28:56,788 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:28:56,789 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:29:05,164 - assistant - INFO - Self-reflection step placeholder
+2025-03-30 14:29:05,168 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:29:29,935 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:29:29,936 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:29:40,369 - assistant - INFO - Self-reflection step placeholder
+2025-03-30 14:29:40,387 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:35:13,421 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:35:13,421 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:39:15,002 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:39:15,002 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:39:30,705 - assistant - ERROR - Error during reflection phase: 'PromptManager' object has no attribute 'self_reflection_prompt'
+Traceback (most recent call last):
+  File "/home/long/gem-assist/assistant/messaging.py", line 161, in process_agentic_flow
+    reflection_template_str = config.prompt_manager.self_reflection_prompt
+                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'PromptManager' object has no attribute 'self_reflection_prompt'
+2025-03-30 14:39:30,709 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:48:59,375 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:48:59,375 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:49:07,185 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:49:17,864 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:49:17,864 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:49:30,787 - assistant - INFO - Agentic message processing completed successfully
+2025-03-30 14:49:37,302 - assistant - INFO - Starting agentic message processing
+2025-03-30 14:49:37,302 - assistant - INFO - Starting process_agentic_flow
+2025-03-30 14:49:48,965 - assistant - INFO - Agentic message processing completed successfully
