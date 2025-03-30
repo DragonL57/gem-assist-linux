@@ -191,46 +191,97 @@ class MessageProcessor:
             self.assistant.logger.logger.exception(f"Error during reflection phase: {e}", extra={"context_message": message})
             self.assistant.console.print("[yellow]Warning: Reflection step failed.[/]")
 
-        # --- 4. Final Response Generation (Currently using last message from execution) ---
-        # TODO: Potentially use reflection_text to refine final_assistant_message
-        # For now, the final message from the execution loop is considered the final response.
-
+        # --- 4. Final Response Generation (Integrating Reflection) ---
         if not final_assistant_message:
             self.assistant.logger.log_error("Execution phase did not produce a final assistant message", {"message": message})
-            # Provide a generic error response to the user if execution failed silently
             error_message = "Sorry, I encountered an issue processing your request after planning. Please try again."
-            await self.assistant.add_msg_assistant(error_message) # Add error to history
-            self.assistant.display.print_ai(error_message) # Display error
+            await self.assistant.add_msg_assistant(error_message)
+            self.assistant.display.print_ai(error_message)
             return {"error": "missing_final_message_after_execution"}
 
-        # Display the final response (generated during execution phase)
-        self.assistant.console.print("[bold green]Final Response:[/]")
-        if hasattr(final_assistant_message, 'content') and final_assistant_message.content:
-            self.assistant.display.print_ai(final_assistant_message.content)
-        else:
-            # Handle cases where the final message might be just tool calls (shouldn't happen ideally)
-            # or content is empty/None
-            fallback_content = "[Assistant response has no displayable content]"
-            self.assistant.display.print_ai(fallback_content)
-            # Ensure even this fallback is added to history for consistency
-            # Check if final_assistant_message is the problematic object itself
-            if not isinstance(final_assistant_message, dict) or not hasattr(final_assistant_message, 'content'):
-                 # If the object structure is unexpected or lacks content, create/update a minimal dict
-                 # We assume add_msg_assistant added *something* earlier, try finding last assistant msg
-                 last_msg = next((m for m in reversed(self.assistant.messages) if m.get("role") == "assistant"), None)
-                 if last_msg and isinstance(last_msg, dict):
-                      last_msg["content"] = fallback_content # Update existing history item
-                      final_assistant_message = last_msg # Return the updated history item
-                 else:
-                      # If can't update history, create a new dict for return, history might be slightly off
-                      final_assistant_message = {"role": "assistant", "content": fallback_content}
-                      await self.assistant.add_msg_assistant(final_assistant_message) # Add the fallback message
-            else:
-                 # If it's a dict-like object with content attribute, update it
-                 final_assistant_message.content = fallback_content # Update existing object
+        # Attempt to refine the final response using reflection
+        refined_final_message = final_assistant_message # Default to original if refinement fails
+        try:
+            self.assistant.console.print("[bold blue]Final Refinement Phase:[/]")
+            initial_response_content = final_assistant_message.content if hasattr(final_assistant_message, 'content') and final_assistant_message.content else "[No initial content]"
 
-        # Return the final message object (which should have already been added to history by process_response)
-        return final_assistant_message
+            refinement_template_str = config.prompt_manager.final_response_refinement_prompt # Assuming this prompt exists in config
+            template = jinja_env.from_string(refinement_template_str)
+            formatted_refinement_prompt = template.render({
+                "initial_response": initial_response_content,
+                "reflection": reflection_text # Use the reflection text generated earlier
+            })
+
+            # Use history *up to the point before the initial final_assistant_message was added*
+            # This avoids including the unrefined message in the refinement context itself.
+            history_before_final = []
+            for msg in self.assistant.messages:
+                 # Check if msg is the same object as final_assistant_message - might be tricky
+                 # Safer approach: check if it's an assistant message without tool calls added *after* the last tool response
+                 # Or, more simply, just use messages up to the last 'tool' role message, or the user message if no tools.
+                 last_tool_idx = -1
+                 for i, m in reversed(list(enumerate(self.assistant.messages))):
+                     if m.get("role") == "tool":
+                         last_tool_idx = i
+                         break
+                 
+                 if last_tool_idx != -1:
+                      history_before_final = self.assistant.messages[:last_tool_idx+1]
+                 else: # No tool calls, use history up to the user message
+                      history_before_final = self.assistant.messages[:start_message_index+1]
+
+
+            refinement_messages = history_before_final + [
+                {"role": "user", "content": formatted_refinement_prompt}
+            ]
+
+            # Call LLM for refinement (no tools)
+            refinement_response = await self.assistant.get_completion_with_retry(
+                messages=refinement_messages,
+                tools=None
+            )
+
+            if refinement_response and refinement_response.choices and hasattr(refinement_response.choices[0], 'message') and refinement_response.choices[0].message.content:
+                refined_content = refinement_response.choices[0].message.content.strip()
+                if refined_content:
+                    # Create a new message object for the refined response
+                    refined_final_message = {"role": "assistant", "content": refined_content}
+                    self.assistant.logger.log_info("Successfully refined final response using reflection.", {"original_length": len(initial_response_content), "refined_length": len(refined_content)})
+                    # Replace the last message in history if it was the unrefined one
+                    if self.assistant.messages and self.assistant.messages[-1] is final_assistant_message:
+                         self.assistant.messages[-1] = refined_final_message
+                    else: # Otherwise, append (might happen if original had tool calls)
+                         await self.assistant.add_msg_assistant(refined_final_message) # Use helper to add
+                else:
+                    self.assistant.logger.log_warning("Refinement LLM call returned empty content.", {"response": str(refinement_response)})
+            else:
+                 self.assistant.logger.log_warning("Refinement LLM call failed or returned unexpected structure.", {"response": str(refinement_response)})
+
+        except Exception as refine_err:
+            # Log exception but don't fail the whole process, just use the original response
+            self.assistant.logger.logger.exception(f"Error during final response refinement phase: {refine_err}", extra={"context_message": message})
+            self.assistant.console.print("[yellow]Warning: Final response refinement step failed. Using original response.[/]")
+            # Ensure the original final_assistant_message is still in history correctly
+            if not self.assistant.messages or self.assistant.messages[-1] is not final_assistant_message:
+                 # If history got messed up, try re-adding the original final message
+                 await self.assistant.add_msg_assistant(final_assistant_message)
+
+
+        # Display the final response (potentially refined)
+        self.assistant.console.print("[bold green]Final Response:[/]")
+        final_content_to_display = "[Assistant response has no displayable content]"
+        if isinstance(refined_final_message, dict) and refined_final_message.get("content"):
+            final_content_to_display = refined_final_message["content"]
+        elif hasattr(refined_final_message, 'content') and refined_final_message.content: # Handle case where it's still the original object
+             final_content_to_display = refined_final_message.content
+
+        self.assistant.display.print_ai(final_content_to_display)
+
+        # Ensure the message object being returned is the one in history
+        # If refinement failed, refined_final_message is the original object
+        # If refinement succeeded, refined_final_message is the new dict, which should now be in history
+        # Return the message object that was ultimately decided upon (refined or original)
+        return refined_final_message
 
     # --- Modified process_response to support agentic flow ---
     async def process_response(self, response: Any, print_response: bool = True, retry_attempt: int = 0, replan_attempt: int = 0) -> Optional[Any]: # Added replan_attempt

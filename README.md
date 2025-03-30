@@ -23,6 +23,8 @@ This Linux fork provides substantial improvements over the original project:
 - **Linux Compatibility**: Fixed various issues that prevented proper functionality on Linux systems.
 - **Comprehensive System Information**: Enhanced system information collection and reporting.
 - **Improved Prompting**: Enhanced system prompts for more efficient tool usage and creative problem-solving.
+- **Sophisticated Re-planning Strategies**: Implemented more explicit LLM instructions, error-specific strategies, and a critique step for re-planning upon tool execution errors.
+- **Integrated Reflection in Response**: Utilized insights from the Reflection Phase to refine the final assistant output, improving response quality.
 
 ## 🌟 Key Features
 
@@ -256,8 +258,6 @@ This project is a fork of the original [gem-assist](https://github.com/Fus3n/gem
 
 Potential areas for future development include:
 
--   **Sophisticated Re-planning Strategies:** Enhance re-planning with more explicit LLM instructions, error-specific strategies, and a critique step.
--   **Integrate Reflection into Response:** Utilize the Reflection Phase insights to refine the final assistant output.
 -   **Enhanced Error Handling:** Introduce more specific exception types for nuanced error handling and re-planning.
 -   **Advanced Context Management:** Implement techniques like summarization or selective context inclusion for long conversations.
 -   **Robust Tool Management:** Improve tool loading/discovery and potentially allow LLM selection of tool subsets.
