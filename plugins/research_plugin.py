@@ -14,7 +14,7 @@ class ResearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["research", "academic"],
+        categories=["research"],
         requires_network=True,
         rate_limited=True
     )
@@ -122,7 +122,7 @@ class ResearchPlugin(Plugin):
     
     @staticmethod
     @tool(
-        categories=["research", "analysis"],
+        categories=["research"],
         requires_network=True
     )
     def summarize_research_paper(text: str, max_length: int = 1500) -> Dict[str, Any]:

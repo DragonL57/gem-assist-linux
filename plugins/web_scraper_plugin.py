@@ -3,427 +3,393 @@ Web scraper plugin providing advanced web content extraction capabilities.
 """
 import time
 import re
+import json
 from typing import Dict, List, Any, Optional, Union
 
 from plugins import Plugin, tool, capability, PluginError
 from core_utils import tool_message_print, tool_report_print
 
+# --- Dependency Check ---
+_SELENIUM_AVAILABLE = False
+_BS4_AVAILABLE = False
+_REQUESTS_AVAILABLE = False
+_PANDAS_AVAILABLE = False
+
+try:
+    import requests
+    _REQUESTS_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from bs4 import BeautifulSoup
+    _BS4_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException
+    _SELENIUM_AVAILABLE = True
+except ImportError:
+    pass
+
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:
+    pass
+# --- End Dependency Check ---
+
+
 class WebScraperPlugin(Plugin):
-    """Plugin providing web scraping operations."""
-    
+    """Plugin providing advanced web scraping operations."""
+
     @staticmethod
     @tool(
-        categories=["web", "scraping"],
+        categories=["web"],
         requires_network=True,
-        rate_limited=True
+        rate_limited=True,
+        description="Advanced tool to fetch and extract content from a URL with various modes.",
+        params={
+            "url": {"type": str, "required": True, "description": "URL of the webpage."},
+            "mode": {
+                "type": str,
+                "required": False,
+                "default": "smart",
+                "enum": ["smart", "text", "structured", "dynamic", "tables"],
+                "description": "Extraction mode: 'smart' (clean main content), 'text' (full raw text), 'structured' (CSS selectors), 'dynamic' (JS rendering), 'tables' (HTML tables)."
+            },
+            "render_js": {"type": bool, "required": False, "default": False, "description": "Set to true for sites needing JavaScript rendering (implies using Selenium). 'dynamic' mode automatically sets this."},
+            "wait_time": {"type": int, "required": False, "default": 5, "description": "Wait time in seconds for JS execution if render_js is true."},
+            "selectors": {"type": dict, "required": False, "description": "Dict mapping field names to CSS selectors (required for 'structured' mode). E.g. {'title': 'h1', 'price': '.price'}"},
+            "table_index": {"type": int, "required": False, "default": -1, "description": "Index of table to extract for 'tables' mode (-1 for all tables)."},
+            "pagination_config": {"type": dict, "required": False, "description": "Configuration for pagination: {'page_param': 'page', 'max_pages': 3, 'start_page': 1, 'content_selector': 'body'}"}
+        }
     )
-    def extract_structured_data(
-        url: str, 
-        selectors: Dict[str, str]
+    def advanced_web_scrape(
+        url: str,
+        mode: str = "smart",
+        render_js: bool = False,
+        wait_time: int = 5,
+        selectors: Optional[Dict[str, str]] = None,
+        table_index: int = -1,
+        pagination_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Extract structured data from a webpage using CSS selectors.
-        
+        Fetches and extracts content from a URL using various modes and options.
+
         Args:
-            url: URL of the webpage to scrape
-            selectors: Dictionary mapping field names to CSS selectors (e.g. {"title": "h1.main-title", "price": "span.price"})
-            
+            url: URL of the webpage.
+            mode: Extraction mode ('smart', 'text', 'structured', 'dynamic', 'tables').
+            render_js: Whether to render JavaScript (uses Selenium). 'dynamic' mode forces this.
+            wait_time: Seconds to wait for JS rendering.
+            selectors: CSS selectors for 'structured' mode.
+            table_index: Index for 'tables' mode (-1 for all).
+            pagination_config: Dict with pagination settings if needed.
+
         Returns:
-            Dictionary with extracted data
+            Dictionary containing the extracted data based on the mode.
+
+        Raises:
+            PluginError: If dependencies are missing or errors occur during scraping.
         """
-        tool_message_print(f"Extracting structured data from: {url}")
-        
+        tool_message_print(f"Advanced web scrape started for: {url} (Mode: {mode})")
+
+        # --- Dependency Checks ---
+        if not _REQUESTS_AVAILABLE:
+            raise PluginError("requests library is required.", plugin_name="WebScraperPlugin")
+        if not _BS4_AVAILABLE:
+             raise PluginError("beautifulsoup4 library is required.", plugin_name="WebScraperPlugin")
+        if (render_js or mode == "dynamic") and not _SELENIUM_AVAILABLE:
+             raise PluginError("selenium library is required for JavaScript rendering.", plugin_name="WebScraperPlugin")
+        if mode == "tables" and not _PANDAS_AVAILABLE:
+             raise PluginError("pandas library is required for table extraction.", plugin_name="WebScraperPlugin")
+
+        # --- Parameter Validation ---
+        if mode == "structured" and not selectors:
+            raise PluginError("Selectors must be provided for 'structured' mode.", plugin_name="WebScraperPlugin")
+        if mode == "dynamic":
+            render_js = True # Force JS rendering for dynamic mode
+
+        # --- Main Logic ---
         try:
-            import requests
-            from bs4 import BeautifulSoup
-            
-            # Make the request with a reasonable timeout
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            
-            # Parse the HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Extract data based on selectors
-            result = {}
-            for field, selector in selectors.items():
-                elements = soup.select(selector)
-                if elements:
-                    # If multiple elements found, get all text contents
-                    if len(elements) > 1:
-                        result[field] = [el.get_text(strip=True) for el in elements]
-                    # If single element, get text content
-                    else:
-                        result[field] = elements[0].get_text(strip=True)
+            # Handle Pagination Separately if configured
+            if pagination_config:
+                return WebScraperPlugin._scrape_paginated(url, pagination_config)
+
+            # Handle Dynamic/JS Rendering
+            elif render_js:
+                 return WebScraperPlugin._scrape_dynamic(url, wait_time, selectors if mode == 'structured' else ['body'])
+
+            # Handle Static Content Modes
+            else:
+                headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
+                response = requests.get(url, headers=headers, timeout=15)
+                response.raise_for_status()
+                html_content = response.text
+
+                if mode == "text":
+                    return {"url": url, "mode": mode, "content": html_content, "content_length": len(html_content)}
+                elif mode == "smart":
+                    return WebScraperPlugin._extract_smart_content(url, html_content)
+                elif mode == "structured":
+                    return WebScraperPlugin._extract_structured_static(url, html_content, selectors)
+                elif mode == "tables":
+                    return WebScraperPlugin._extract_tables_static(url, html_content, table_index)
                 else:
-                    result[field] = None
-                    
-            # Add metadata
-            result["url"] = url
-            result["timestamp"] = time.strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Print summary
-            data_count = sum(1 for v in result.values() if v is not None and v != [])
-            tool_report_print(f"Extracted {data_count} data fields from {url}")
-            
-            return result
-            
+                    raise PluginError(f"Invalid mode specified: {mode}", plugin_name="WebScraperPlugin")
+
         except Exception as e:
-            raise PluginError(f"Error extracting structured data: {e}", plugin_name=WebScraperPlugin.__name__) from e
-    
+            # Catch potential requests/bs4/selenium/pandas errors
+            if isinstance(e, PluginError): # Don't wrap PluginErrors
+                raise e
+            raise PluginError(f"Error during advanced web scrape: {e}", plugin_name="WebScraperPlugin") from e
+
+    # --- Helper methods extracted from original tools ---
+
     @staticmethod
-    @tool(
-        categories=["web", "data"],
-        requires_network=True,
-        rate_limited=True
-    )
-    def extract_tables_to_dataframes(url: str, table_index: int = 0) -> Dict[str, Any]:
-        """
-        Extract HTML tables from a webpage into pandas DataFrames.
-        
-        Args:
-            url: URL of the webpage containing tables
-            table_index: Index of the specific table to extract (-1 for all tables)
-            
-        Returns:
-            Dictionary with table data and metadata
-        """
-        tool_message_print(f"Extracting tables from: {url}")
-        
-        try:
-            import requests
-            import pandas as pd
-            
-            # Make the request
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            
-            # Read HTML tables
-            tables = pd.read_html(response.text)
-            
-            if not tables:
-                raise PluginError("No tables found on the page", plugin_name=WebScraperPlugin.__name__)
-                
-            # Process tables based on index
-            if table_index >= 0 and table_index < len(tables):
-                # Extract specific table
-                df = tables[table_index]
-                tables_data = [{
-                    "index": table_index,
-                    "shape": df.shape,
-                    "columns": list(df.columns),
+    def _extract_smart_content(url: str, html_content: str) -> Dict[str, Any]:
+        """Helper for smart content extraction."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        for element in soup.find_all(['script', 'style', 'nav', 'footer', 'iframe', 'noscript', 'form']):
+            element.decompose()
+
+        title = soup.find('title')
+        title_text = title.get_text(strip=True) if title else "No title found"
+
+        metadata = {}
+        for meta in soup.find_all('meta'):
+            prop = meta.get('property', '')
+            name = meta.get('name', '')
+            if prop.startswith('og:'):
+                metadata[prop] = meta.get('content', '')
+            elif name == 'description':
+                metadata['description'] = meta.get('content', '')
+
+        ad_classes = ['ad', 'ads', 'advertisement', 'banner', 'sidebar', 'social', 'share', 'comment', 'comments', 'footer']
+        for class_name in ad_classes:
+            for element in soup.find_all(class_=re.compile(class_name, re.IGNORECASE)):
+                element.decompose()
+
+        main_content_element = None
+        potential_tags = ['article', 'main']
+        potential_classes = ['content', 'main', 'article', 'post', 'body', 'entry', 'text']
+        for tag in potential_tags:
+             main_content_element = soup.find(tag)
+             if main_content_element: break
+        if not main_content_element:
+             for class_name in potential_classes:
+                 main_content_element = soup.find('div', class_=class_name)
+                 if main_content_element: break
+        if not main_content_element:
+            main_content_element = soup.body
+
+        if not main_content_element:
+             raise PluginError("Could not identify main content area.", plugin_name="WebScraperPlugin")
+
+        paragraphs = []
+        for p in main_content_element.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li']):
+             text = p.get_text(strip=True)
+             # Basic filtering for meaningful text
+             if text and len(text.split()) > 3:
+                 paragraphs.append(text)
+
+        if not paragraphs:
+            # Fallback: get all text if paragraph extraction fails
+            paragraphs = [main_content_element.get_text(separator='\n', strip=True)]
+            if not paragraphs or not paragraphs[0]:
+                 raise PluginError("No significant text content found.", plugin_name="WebScraperPlugin")
+
+        content = '\n\n'.join(paragraphs)
+        result = {
+            "url": url,
+            "mode": "smart",
+            "title": title_text,
+            "metadata": metadata,
+            "content": content,
+            "content_length": len(content),
+            "paragraph_count": len(paragraphs),
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        tool_report_print(f"Smart extraction: {len(paragraphs)} paragraphs ({len(content)} chars)")
+        return result
+
+    @staticmethod
+    def _extract_structured_static(url: str, html_content: str, selectors: Dict[str, str]) -> Dict[str, Any]:
+        """Helper for structured data extraction from static HTML."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        result_data = {}
+        for field, selector in selectors.items():
+            elements = soup.select(selector)
+            if elements:
+                if len(elements) > 1:
+                    result_data[field] = [el.get_text(strip=True) for el in elements]
+                else:
+                    result_data[field] = elements[0].get_text(strip=True)
+            else:
+                result_data[field] = None
+
+        result = {
+            "url": url,
+            "mode": "structured",
+            "data": result_data,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        data_count = sum(1 for v in result_data.values() if v is not None and v != [])
+        tool_report_print(f"Structured extraction: {data_count} fields matched")
+        return result
+
+    @staticmethod
+    def _extract_tables_static(url: str, html_content: str, table_index: int) -> Dict[str, Any]:
+        """Helper for table extraction from static HTML."""
+        tables = pd.read_html(html_content)
+        if not tables:
+            raise PluginError("No tables found on the page", plugin_name="WebScraperPlugin")
+
+        tables_data = []
+        table_count_extracted = 0
+        if table_index >= 0 and table_index < len(tables):
+            df = tables[table_index]
+            tables_data.append({
+                "index": table_index, "shape": df.shape, "columns": list(df.columns),
+                "data": df.to_dict(orient='records')
+            })
+            table_count_extracted = 1
+        elif table_index == -1:
+            for i, df in enumerate(tables):
+                tables_data.append({
+                    "index": i, "shape": df.shape, "columns": list(df.columns),
                     "data": df.to_dict(orient='records')
-                }]
-                table_count = 1
-            elif table_index == -1:
-                # Extract all tables
-                tables_data = []
-                for i, df in enumerate(tables):
-                    tables_data.append({
-                        "index": i,
-                        "shape": df.shape,
-                        "columns": list(df.columns),
-                        "data": df.to_dict(orient='records')
-                    })
-                table_count = len(tables)
-            else:
-                raise PluginError(
-                    f"Table index {table_index} out of range (0-{len(tables)-1})", 
-                    plugin_name=WebScraperPlugin.__name__
-                )
-            
-            # Build result
-            result = {
-                "url": url,
-                "table_count": table_count,
-                "tables": tables_data
-            }
-            
-            # Print summary
-            total_rows = sum(t["shape"][0] for t in tables_data)
-            tool_report_print(f"Extracted {table_count} tables with {total_rows} total rows from {url}")
-            
-            return result
-            
-        except Exception as e:
-            raise PluginError(f"Error extracting tables: {e}", plugin_name=WebScraperPlugin.__name__) from e
-    
+                })
+            table_count_extracted = len(tables)
+        else:
+            raise PluginError(f"Table index {table_index} out of range (0-{len(tables)-1})", plugin_name="WebScraperPlugin")
+
+        result = {
+            "url": url, "mode": "tables", "total_tables_found": len(tables),
+            "tables_extracted_count": table_count_extracted, "tables": tables_data
+        }
+        total_rows = sum(t["shape"][0] for t in tables_data)
+        tool_report_print(f"Table extraction: Extracted {table_count_extracted} tables, {total_rows} total rows")
+        return result
+
     @staticmethod
-    @tool(
-        categories=["web", "scraping"],
-        requires_network=True,
-        rate_limited=True
-    )
-    def scrape_with_pagination(
-        base_url: str, 
-        max_pages: int = 3, 
-        page_param: str = "page", 
-        start_page: int = 1, 
-        content_selector: str = "body"
-    ) -> Dict[str, Any]:
-        """
-        Scrape content from multiple pages of a paginated website.
-        
-        Args:
-            base_url: Base URL for the paginated content
-            max_pages: Maximum number of pages to scrape
-            page_param: URL parameter name for the page number
-            start_page: Page number to start scraping from
-            content_selector: CSS selector for the main content
-            
-        Returns:
-            Dictionary with content from all pages
-        """
-        tool_message_print(f"Scraping paginated content from: {base_url}")
-        
-        try:
-            import requests
-            from bs4 import BeautifulSoup
-            
-            results = {
-                "base_url": base_url,
-                "pages": []
-            }
-            
-            # Determine URL format
-            if "?" in base_url:
-                url_format = base_url + f"&{page_param}={{}}"
+    def _scrape_dynamic(url: str, wait_time: int, selectors: List[str]) -> Dict[str, Any]:
+        """Helper for dynamic content scraping using Selenium."""
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        # Add a common user agent
+        options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36")
+
+
+        results = {"url": url, "mode": "dynamic", "content": {}}
+        page_source = ""
+
+        with webdriver.Chrome(options=options) as driver:
+            driver.set_page_load_timeout(30) # Increased timeout
+            driver.get(url)
+            tool_message_print(f"Waiting {wait_time}s for JS execution...")
+            time.sleep(wait_time) # Simple wait
+
+            page_source = driver.page_source # Get source after JS runs
+
+            # If selectors provided, extract specific elements
+            if selectors and selectors != ['body']:
+                 for selector in selectors:
+                     try:
+                         # Wait slightly for element presence after initial JS load
+                         element = WebDriverWait(driver, 10).until(
+                             EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+                         )
+                         # Try getting text, fallback to outerHTML
+                         content_text = element.text or element.get_attribute('outerHTML')
+                         results["content"][selector] = content_text.strip() if content_text else None
+                     except TimeoutException:
+                         results["content"][selector] = None
+                         tool_message_print(f"Warning: Selector '{selector}' not found after wait.")
             else:
-                url_format = base_url + f"?{page_param}={{}}"
-            
-            # Process each page
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
-            
-            for page_num in range(start_page, start_page + max_pages):
-                # Format the page URL
-                page_url = url_format.format(page_num)
-                
-                # Make the request
+                 # Default: Get the text of the whole body if no specific selectors
+                 try:
+                      body_element = WebDriverWait(driver, 10).until(
+                          EC.presence_of_element_located((By.CSS_SELECTOR, 'body'))
+                      )
+                      results["content"]["body"] = body_element.text.strip()
+                 except TimeoutException:
+                      results["content"]["body"] = None
+                      tool_message_print("Warning: Body element not found after wait.")
+
+
+        results["page_source_length"] = len(page_source)
+        selector_count = sum(1 for s, v in results["content"].items() if v is not None)
+        tool_report_print(f"Dynamic scrape: Extracted {selector_count} elements/body")
+        return results
+
+    @staticmethod
+    def _scrape_paginated(base_url: str, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Helper for scraping paginated content."""
+        max_pages = config.get('max_pages', 3)
+        page_param = config.get('page_param', 'page')
+        start_page = config.get('start_page', 1)
+        content_selector = config.get('content_selector', 'body')
+
+        results = {"base_url": base_url, "mode": "pagination", "pages": []}
+        url_format = f"{base_url}{'&' if '?' in base_url else '?'}{page_param}={{}}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
+
+        for page_num in range(start_page, start_page + max_pages):
+            page_url = url_format.format(page_num)
+            tool_message_print(f"Scraping page {page_num}: {page_url}")
+            try:
                 response = requests.get(page_url, headers=headers, timeout=15)
                 response.raise_for_status()
-                
-                # Parse the content
                 soup = BeautifulSoup(response.text, 'html.parser')
-                content = soup.select(content_selector)
-                
-                if not content:
-                    raise PluginError(
-                        f"No content found with selector '{content_selector}' on page {page_num}",
-                        plugin_name=WebScraperPlugin.__name__
-                    )
-                
-                # Extract text content
-                text_content = " ".join(element.get_text(strip=True) for element in content)
-                
-                # Add to results
+                content_elements = soup.select(content_selector)
+
+                if not content_elements:
+                    tool_message_print(f"Warning: No content found with selector '{content_selector}' on page {page_num}")
+                    page_content = "" # Continue pagination even if one page fails
+                else:
+                    # Join text from potentially multiple matching elements
+                    page_content = "\n\n".join(element.get_text(strip=True) for element in content_elements)
+
                 results["pages"].append({
                     "url": page_url,
                     "page_number": page_num,
-                    "content": text_content[:1000] + ("..." if len(text_content) > 1000 else "")
+                    "content_preview": page_content[:500] + ("..." if len(page_content) > 500 else ""),
+                    "content_length": len(page_content),
+                    "status": "success"
                 })
-                
-                # Add a short delay to avoid overloading the server
-                time.sleep(1)
-                
-            # Print summary
-            tool_report_print(f"Scraped {len(results['pages'])} pages from {base_url}")
-            
-            return results
-            
-        except Exception as e:
-            raise PluginError(f"Error scraping paginated content: {e}", plugin_name=WebScraperPlugin.__name__) from e
-    
-    @staticmethod
-    @tool(
-        categories=["web", "scraping"],
-        requires_network=True,
-        rate_limited=True
-    )
-    def scrape_dynamic_content(url: str, wait_time: int = 5, selectors: List[str] = None) -> Dict[str, Any]:
-        """
-        Scrape content from a JavaScript-heavy website that requires browser rendering.
-        
-        Args:
-            url: URL to scrape
-            wait_time: Time to wait for JavaScript execution (seconds)
-            selectors: List of CSS selectors to extract (default: body)
-            
-        Returns:
-            Dictionary with scraped content
-        """
-        tool_message_print(f"Scraping dynamic content from: {url}")
-        
-        try:
-            # Check if Selenium is available
-            try:
-                from selenium import webdriver
-                from selenium.webdriver.chrome.options import Options
-                from selenium.webdriver.common.by import By
-                from selenium.webdriver.support.ui import WebDriverWait
-                from selenium.webdriver.support import expected_conditions as EC
-                from selenium.common.exceptions import TimeoutException
-            except ImportError:
-                raise PluginError(
-                    "Selenium is not installed. Install with 'pip install selenium'",
-                    plugin_name=WebScraperPlugin.__name__
-                )
-                
-            # Set default selectors if none provided
-            if selectors is None:
-                selectors = ["body"]
-                
-            # Configure Chrome options
-            options = Options()
-            options.add_argument("--headless")
-            options.add_argument("--disable-gpu")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            
-            # Initialize the driver and extract content
-            results = {"url": url, "content": {}}
-            
-            with webdriver.Chrome(options=options) as driver:
-                # Set page load timeout
-                driver.set_page_load_timeout(30)
-                
-                # Navigate to the URL
-                driver.get(url)
-                
-                # Wait for the specified time to let JavaScript execute
-                time.sleep(wait_time)
-                
-                # Extract content for each selector
-                for selector in selectors:
-                    try:
-                        # Try to wait for the element to be present
-                        element = WebDriverWait(driver, 10).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
-                        )
-                        
-                        # Get the text content
-                        content = element.text
-                        results["content"][selector] = content
-                        
-                    except TimeoutException:
-                        results["content"][selector] = None
-                        
-                # Get page source
-                results["page_source_length"] = len(driver.page_source)
-            
-            # Print summary
-            selector_count = len([s for s in results["content"] if results["content"][s] is not None])
-            tool_report_print(f"Extracted {selector_count} dynamic elements from {url}")
-            
-            return results
-                
-        except Exception as e:
-            raise PluginError(f"Error scraping dynamic content: {e}", plugin_name=WebScraperPlugin.__name__) from e
-    
-    @staticmethod
-    @tool(
-        categories=["web", "content"],
-        requires_network=True,
-        rate_limited=True
-    )
-    def smart_content_extraction(url: str) -> Dict[str, Any]:
-        """
-        Intelligently extract clean, readable content from a webpage with metadata.
-        
-        Args:
-            url: URL of the webpage to extract content from
-            
-        Returns:
-            Dictionary with extracted content and metadata
-        """
-        tool_message_print(f"Extracting smart content from: {url}")
-        
-        try:
-            import requests
-            import re
-            from bs4 import BeautifulSoup
-            
-            # Make the request
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'}
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            
-            # Parse HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Remove unwanted elements
-            for element in soup.find_all(['script', 'style', 'nav', 'footer', 'iframe', 'noscript', 'form']):
-                element.decompose()
-                
-            # Extract title
-            title = soup.find('title')
-            title_text = title.get_text() if title else "No title found"
-            
-            # Extract metadata
-            metadata = {}
-            
-            # Extract Open Graph metadata
-            for meta in soup.find_all('meta'):
-                property_value = meta.get('property', '')
-                if property_value.startswith('og:'):
-                    metadata[property_value] = meta.get('content', '')
-                    
-                # Also check for description
-                if meta.get('name') == 'description':
-                    metadata['description'] = meta.get('content', '')
-            
-            # Remove common ads and navigation elements
-            ad_classes = ['ad', 'ads', 'advertisement', 'banner', 'sidebar', 'social', 'share', 'comment', 'comments', 'footer']
-            for class_name in ad_classes:
-                for element in soup.find_all(class_=re.compile(class_name, re.IGNORECASE)):
-                    element.decompose()
-            
-            # Try to find main content (priority to article, main, or content divs)
-            main_content = None
-            for tag in ['article', 'main', 'div']:
-                for element in soup.find_all(tag):
-                    if (tag == 'div' and any(c in element.get('class', []) for c in ['content', 'main', 'article', 'post', 'body', 'entry', 'text'])):
-                        main_content = element
-                        break
-                    elif tag != 'div':
-                        main_content = element
-                        break
-                if main_content:
-                    break
-            
-            # If no main content found, use body
-            if not main_content:
-                main_content = soup.body
-            
-            if not main_content:
-                raise PluginError("No content found", plugin_name=WebScraperPlugin.__name__)
-            
-            # Extract text with paragraph structure
-            paragraphs = []
-            for p in main_content.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                text = p.get_text(strip=True)
-                if text and len(text) > 15:  # Filter out very short paragraphs
-                    paragraphs.append(text)
-            
-            if not paragraphs:
-                raise PluginError("No paragraphs found in content", plugin_name=WebScraperPlugin.__name__)
-            
-            # Build the result
-            result = {
-                "url": url,
-                "title": title_text,
-                "metadata": metadata,
-                "content": '\n\n'.join(paragraphs),
-                "content_length": len('\n\n'.join(paragraphs)),
-                "paragraph_count": len(paragraphs),
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-            }
-            
-            # Print summary
-            tool_report_print(f"Extracted {len(paragraphs)} paragraphs ({result['content_length']} chars) from {url}")
-            
-            return result
-            
-        except Exception as e:
-            raise PluginError(f"Error extracting smart content: {e}", plugin_name=WebScraperPlugin.__name__) from e
+            except requests.exceptions.RequestException as e:
+                 tool_message_print(f"Error fetching page {page_num}: {e}")
+                 results["pages"].append({
+                     "url": page_url,
+                     "page_number": page_num,
+                     "status": "error",
+                     "error_message": str(e)
+                 })
+                 # Optional: Stop pagination on first error? For now, continue.
+            except Exception as e:
+                 tool_message_print(f"Error processing page {page_num}: {e}")
+                 results["pages"].append({
+                     "url": page_url,
+                     "page_number": page_num,
+                     "status": "error",
+                     "error_message": str(e)
+                 })
+
+            time.sleep(0.5) # Small delay between pages
+
+        tool_report_print(f"Pagination scrape: Processed {len(results['pages'])} pages.")
+        return results
+
+# Keep the class definition
+# The original tool methods (@tool decorated staticmethods) are now removed
+# and replaced by the single advanced_web_scrape tool and its helpers.
