@@ -172,15 +172,16 @@ class Assistant:
                  # Make sure to add the final assistant message to history
                 await self.add_msg_assistant(response_message)
                 return {"content": response_message.content}
-            elif response_message: # Handle cases where response might be structured differently
-                 # Log warning about unexpected structure, but still return
-                self.logger.log_warning("Agentic flow returned unexpected response structure", {"response": str(response_message)})
+            elif response_message:  # Handle cases where response might be structured differently
+                # Log non-standard response structure as debug if necessary
+                if not (isinstance(response_message, dict) and "response_data" in response_message):
+                    self.logger.log_debug("Agentic flow received non-standard response structure", {"response": str(response_message)})
                 # Attempt to add to history if possible, otherwise log failure
                 try:
-                    await self.add_msg_assistant(response_message) # Assumes it's a dict matching schema
+                    await self.add_msg_assistant(response_message)  # Assumes it's a dict matching schema
                 except Exception as add_err:
                     self.logger.log_error("Failed to add unexpected response structure to history", {"error": str(add_err)})
-                return {"response_data": response_message} # Or convert to dict if needed
+                return {"response_data": response_message}  # Or convert to dict if needed
             else:
                  # Log unexpected empty response
                 self.logger.log_error("Agentic flow returned None or invalid response_message", {"message": message})

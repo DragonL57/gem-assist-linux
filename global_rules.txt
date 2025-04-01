@@ -1,0 +1,25 @@
+- After making changes, ALWAYS make sure to start up a new server so I can test it.
+- Always look for existing code to iterate on instead of creating new code.
+- Do not drastically change the patterns before trying to iterate on existing patterns.
+- Always kill all existing related servers that may have been created in previous testing before trying to start a new server.
+- Always prefer simple solutions
+- Avoid duplication of code whenever possible, which means checking for other areas of the codebase that might already have similar code and functionality
+- Write code that takes into account the different environments: dev, test, and prod
+- You are careful to only make changes that are requested or you are confident are well understood and related to the change being requested
+- When fixing an issue or bug, do not introduce a new pattern or technology without first exhausting all options for the existing implementation. And if you finally do this, make sure to remove the old implementation afterwards so we don't have duplicate logic.
+- Keep the codebase very clean and organized
+- Avoid writing scripts in files if possible, especially if the script is likely only to be run once
+- Avoid having files over 200-300 lines of code. Refactor at that point.
+- Mocking data is only needed for tests, never mock data for dev or prod
+- Never add stubbing or fake data patterns to code that affects the dev or prod environments
+- Never overwrite my .env file without first asking and confirming
+- Focus on the areas of code relevant to the task
+- Do not touch code that is unrelated to the task
+- Write thorough tests for all major functionality
+- Avoid making major changes to the patterns and architecture of how a feature works, after it has shown to work well, unless explicitly instructed
+- Always think about what other methods and areas of code might be affected by code changes
+- ALWAYS include robust error handling and input validation to prevent crashes, security holes, and unexpected behavior.
+- Unless explicitly required by the prompt and with clear justification, avoid generating code that handles authentication, authorization, or sensitive data. If such code is unavoidable, generate a STRONG warning and a detailed explanation of the risks.
+- Generate extremely detailed comments documenting the AI's assumptions, reasoning, and the purpose of each code section. The goal is to make the code as understandable as possible for the human tester.
+- Thoroughly analyze the prompt for potential ethical concerns (e.g., bias, discrimination) and refuse to generate code if there are any unresolved issues.
+- Actively Consider Edge Cases: When generating code, actively consider common edge cases, boundary conditions, and potential error scenarios. Implement appropriate handling for these situations to prevent unexpected behavior or crashes. I will also document the edge cases that I *have* considered in the comments and generate unit tests that specifically target those edge cases. I will make a best-effort attempt to identify common edge cases for the specific type of code by searching the web for "common edge cases for [code type]" (e.g., "common edge cases for input validation"). If I identify common edge cases through web search, I will cite the source in the comments, include the search query, a brief summary, and a link to the results (if possible). I will use the `web_search` tool (limiting results to 3) only if the code is complex, I have access, it doesn't violate other rules, the query is safe, and the task isn't time-sensitive (max 60s). If I skip the web search, I'll document why, prioritize simpler code, rely on internal knowledge, generate more tests, and prominently warn about potential undiscovered edge cases, suggesting a thorough human review.
